@@ -54,7 +54,7 @@ export interface Task {
   description: string;
   checklist: ChecklistItem[];
   progress: { done: number; total: number };
-  /** Nome do arquivo dentro de tasks/ (nunca um caminho absoluto). */
+  /** File name inside tasks/ (never an absolute path). */
   file: string;
 }
 
@@ -70,9 +70,9 @@ export interface CreateTaskInput {
   labels?: string[];
   description?: string;
   checklist?: ChecklistItem[];
-  /** Corpo completo; se informado, ignora description/checklist. */
+  /** Full body; when given, description/checklist are ignored. */
   body?: string;
-  /** Posição (0 = topo) dentro da coluna; padrão = fim. */
+  /** Position (0 = top) within the column; defaults to the end. */
   position?: number;
 }
 
@@ -84,9 +84,9 @@ export interface UpdateTaskInput {
   body?: string;
   description?: string;
   checklist?: ChecklistItem[];
-  /** Nova posição (0 = topo) na coluna de destino; reordena os vizinhos. */
+  /** New position (0 = top) in the target column; renumbers its neighbors. */
   position?: number;
-  /** Valor explícito de `order` (alternativa a `position`). */
+  /** Explicit `order` value (alternative to `position`). */
   order?: number;
 }
 
@@ -115,38 +115,38 @@ function isErrno(err: unknown, code: string): boolean {
   return (err as NodeJS.ErrnoException)?.code === code;
 }
 
-// ---------------------------------------------------------------- validação
+// -------------------------------------------------------------- validation
 
 function vString(v: unknown, field: string, max: number, { required = false, multiline = false } = {}): string {
-  if (typeof v !== 'string') throw invalid(`"${field}" deve ser texto`);
+  if (typeof v !== 'string') throw invalid(`"${field}" must be a string`);
   const s = multiline ? v : v.trim();
-  if (required && !s.trim()) throw invalid(`"${field}" é obrigatório`);
-  if (s.length > max) throw invalid(`"${field}" excede ${max} caracteres`);
-  if (!multiline && /[\r\n]/.test(s)) throw invalid(`"${field}" não pode ter quebras de linha`);
+  if (required && !s.trim()) throw invalid(`"${field}" is required`);
+  if (s.length > max) throw invalid(`"${field}" exceeds ${max} characters`);
+  if (!multiline && /[\r\n]/.test(s)) throw invalid(`"${field}" must not contain line breaks`);
   return s;
 }
 
 function vPriority(v: unknown): Priority {
-  if (!PRIORITIES.includes(v as Priority)) throw invalid(`"priority" deve ser ${PRIORITIES.join(' | ')}`);
+  if (!PRIORITIES.includes(v as Priority)) throw invalid(`"priority" must be ${PRIORITIES.join(' | ')}`);
   return v as Priority;
 }
 
 function vLabels(v: unknown): string[] {
-  if (!Array.isArray(v)) throw invalid('"labels" deve ser uma lista');
-  if (v.length > LIMITS.labels) throw invalid(`no máximo ${LIMITS.labels} labels`);
+  if (!Array.isArray(v)) throw invalid('"labels" must be a list');
+  if (v.length > LIMITS.labels) throw invalid(`at most ${LIMITS.labels} labels`);
   const out = v.map((l) => {
     const s = typeof l === 'string' ? l.trim() : '';
-    if (!LABEL_RE.test(s)) throw invalid(`label inválida: ${JSON.stringify(l)}`);
+    if (!LABEL_RE.test(s)) throw invalid(`invalid label: ${JSON.stringify(l)}`);
     return s;
   });
   return [...new Set(out)];
 }
 
 function vChecklist(v: unknown): ChecklistItem[] {
-  if (!Array.isArray(v)) throw invalid('"checklist" deve ser uma lista');
-  if (v.length > LIMITS.checklist) throw invalid(`no máximo ${LIMITS.checklist} itens no checklist`);
+  if (!Array.isArray(v)) throw invalid('"checklist" must be a list');
+  if (v.length > LIMITS.checklist) throw invalid(`at most ${LIMITS.checklist} checklist items`);
   return v.map((i) => {
-    if (!i || typeof i !== 'object') throw invalid('item de checklist inválido');
+    if (!i || typeof i !== 'object') throw invalid('invalid checklist item');
     const item = i as Record<string, unknown>;
     return { text: vString(item.text, 'checklist.text', 500), done: item.done === true };
   });
@@ -154,27 +154,27 @@ function vChecklist(v: unknown): ChecklistItem[] {
 
 function vStatus(board: Board, v: unknown): string {
   if (typeof v !== 'string' || !board.columns.includes(v)) {
-    throw invalid(`status inválido: ${JSON.stringify(v)}. Colunas: ${board.columns.join(', ')}`);
+    throw invalid(`invalid status: ${JSON.stringify(v)}. Columns: ${board.columns.join(', ')}`);
   }
   return v;
 }
 
 function vInt(v: unknown, field: string, min: number, max: number): number {
   if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) {
-    throw invalid(`"${field}" deve ser inteiro entre ${min} e ${max}`);
+    throw invalid(`"${field}" must be an integer between ${min} and ${max}`);
   }
   return v;
 }
 
 function vColumns(v: unknown): string[] {
   if (!Array.isArray(v) || v.length === 0 || v.length > LIMITS.columns) {
-    throw invalid(`"columns" deve ter de 1 a ${LIMITS.columns} colunas`);
+    throw invalid(`"columns" must have 1 to ${LIMITS.columns} columns`);
   }
   const cols = v.map((c) => {
-    if (typeof c !== 'string' || !COLUMN_RE.test(c)) throw invalid(`coluna inválida: ${JSON.stringify(c)}`);
+    if (typeof c !== 'string' || !COLUMN_RE.test(c)) throw invalid(`invalid column: ${JSON.stringify(c)}`);
     return c;
   });
-  if (new Set(cols).size !== cols.length) throw invalid('colunas repetidas');
+  if (new Set(cols).size !== cols.length) throw invalid('duplicate columns');
   return cols;
 }
 
@@ -200,7 +200,7 @@ function toTask({ doc, file }: Entry): Task {
 // ------------------------------------------------------------------- store
 
 export interface StoreOptions {
-  /** Relógio injetável (testes). */
+  /** Injectable clock (tests). */
   now?: () => Date;
 }
 
@@ -228,7 +228,7 @@ export class BoardStore {
     return safeJoin(this.projectDir(slug), 'board.json');
   }
 
-  // ------------------------------------------------------------ projetos
+  // ------------------------------------------------------------ projects
 
   async listProjects(): Promise<Project[]> {
     let dirents;
@@ -244,7 +244,7 @@ export class BoardStore {
       try {
         projects.push(await this.getProject(d.name));
       } catch {
-        // pasta sem board.json válido: não é um projeto
+        // folder without a valid board.json: not a project
       }
     }
     return projects.sort((a, b) => a.name.localeCompare(b.name));
@@ -256,14 +256,14 @@ export class BoardStore {
     try {
       raw = await fs.readFile(file, 'utf8');
     } catch (err) {
-      if (isErrno(err, 'ENOENT')) throw new VckbError('NOT_FOUND', `Projeto não encontrado: ${slug}`);
+      if (isErrno(err, 'ENOENT')) throw new VckbError('NOT_FOUND', `Project not found: ${slug}`);
       throw err;
     }
     let data: Record<string, unknown>;
     try {
       data = JSON.parse(raw);
     } catch {
-      throw invalid(`board.json de "${slug}" não é JSON válido`);
+      throw invalid(`board.json of "${slug}" is not valid JSON`);
     }
     const nextId = Number(data.nextId);
     return {
@@ -292,7 +292,7 @@ export class BoardStore {
     try {
       await fs.mkdir(dir);
     } catch (err) {
-      if (isErrno(err, 'EEXIST')) throw new VckbError('CONFLICT', `Projeto já existe: ${slug}`);
+      if (isErrno(err, 'EEXIST')) throw new VckbError('CONFLICT', `Project already exists: ${slug}`);
       throw err;
     }
     await fs.mkdir(this.tasksDir(slug), { recursive: true });
@@ -301,13 +301,13 @@ export class BoardStore {
     return { slug, ...board };
   }
 
-  // ------------------------------------------------------------- tarefas
+  // --------------------------------------------------------------- tasks
 
   private async readEntries(slug: string): Promise<{ board: Project; entries: Entry[]; invalid: InvalidTaskFile[] }> {
     const board = await this.getProject(slug);
     let files: string[];
     try {
-      // Só arquivos regulares: symlinks são ignorados para não ler/gravar fora de boards/.
+      // Regular files only: symlinks are skipped so nothing is read/written outside the boards dir.
       const dirents = await fs.readdir(this.tasksDir(slug), { withFileTypes: true });
       files = dirents.filter((d) => d.isFile()).map((d) => d.name);
     } catch (err) {
@@ -322,7 +322,7 @@ export class BoardStore {
         const raw = await fs.readFile(safeJoin(this.tasksDir(slug), file), 'utf8');
         const doc = parseTask(raw);
         doc.id = normalizeTaskId(doc.id);
-        if (seen.has(doc.id)) throw new Error(`ID duplicado ${doc.id}`);
+        if (seen.has(doc.id)) throw new Error(`Duplicate ID ${doc.id}`);
         seen.add(doc.id);
         entries.push({ doc, file });
       } catch (err) {
@@ -349,7 +349,7 @@ export class BoardStore {
     const taskId = normalizeTaskId(id);
     const { entries } = await this.readEntries(slug);
     const entry = entries.find((e) => e.doc.id === taskId);
-    if (!entry) throw new VckbError('NOT_FOUND', `Tarefa não encontrada: ${taskId}`);
+    if (!entry) throw new VckbError('NOT_FOUND', `Task not found: ${taskId}`);
     return toTask(entry);
   }
 
@@ -358,8 +358,8 @@ export class BoardStore {
   }
 
   /**
-   * Coloca `doc` na posição `position` da coluna `status`, renumerando order
-   * (10, 20, 30...). Grava apenas os vizinhos cujo order mudou.
+   * Puts `doc` at `position` in the `status` column, renumbering order
+   * (10, 20, 30...). Only neighbors whose order changed are written.
    */
   private async place(slug: string, entries: Entry[], doc: TaskDoc, status: string, position: number): Promise<void> {
     const column = entries.filter((e) => e.doc.status === status && e.doc.id !== doc.id).sort((a, b) => byOrder(a.doc, b.doc));
@@ -394,7 +394,7 @@ export class BoardStore {
         body = newTaskBody(description, input.checklist === undefined ? [] : vChecklist(input.checklist));
       }
 
-      // nextId manda, mas nunca reutiliza um ID que já existe em disco (ex.: criado à mão).
+      // nextId rules, but never reuse an ID that already exists on disk (e.g. created by hand).
       const maxExisting = Math.max(0, ...entries.map((e) => Number(e.doc.id.slice(2))));
       const n = Math.max(board.nextId, maxExisting + 1);
       const id = formatTaskId(n);
@@ -416,12 +416,12 @@ export class BoardStore {
   async updateTask(slug: string, id: string, patch: UpdateTaskInput): Promise<Task> {
     const taskId = normalizeTaskId(id);
     if (!patch || typeof patch !== 'object' || Object.values(patch).every((v) => v === undefined)) {
-      throw invalid('nada para atualizar');
+      throw invalid('nothing to update');
     }
     return withLock(this.projectDir(slug), async () => {
       const { board, entries } = await this.readEntries(slug);
       const entry = entries.find((e) => e.doc.id === taskId);
-      if (!entry) throw new VckbError('NOT_FOUND', `Tarefa não encontrada: ${taskId}`);
+      if (!entry) throw new VckbError('NOT_FOUND', `Task not found: ${taskId}`);
       const doc: TaskDoc = { ...entry.doc };
 
       if (patch.title !== undefined) doc.title = vString(patch.title, 'title', LIMITS.title, { required: true });
@@ -432,7 +432,7 @@ export class BoardStore {
         doc.body = setDescription(doc.body, vString(patch.description, 'description', LIMITS.body, { multiline: true }));
       }
       if (patch.checklist !== undefined) doc.body = setChecklist(doc.body, vChecklist(patch.checklist));
-      if (doc.body.length > LIMITS.body) throw invalid(`corpo excede ${LIMITS.body} caracteres`);
+      if (doc.body.length > LIMITS.body) throw invalid(`body exceeds ${LIMITS.body} characters`);
 
       const status = patch.status === undefined ? doc.status : vStatus(board, patch.status);
       const moving = status !== doc.status;
@@ -463,7 +463,7 @@ export class BoardStore {
     return withLock(this.projectDir(slug), async () => {
       const { entries } = await this.readEntries(slug);
       const entry = entries.find((e) => e.doc.id === taskId);
-      if (!entry) throw new VckbError('NOT_FOUND', `Tarefa não encontrada: ${taskId}`);
+      if (!entry) throw new VckbError('NOT_FOUND', `Task not found: ${taskId}`);
       const today = this.today();
       const updated = { file: entry.file, doc: { ...entry.doc, body: appendNote(entry.doc.body, note, today), updated: today } };
       await this.writeEntry(slug, updated);
@@ -476,7 +476,7 @@ export class BoardStore {
     await withLock(this.projectDir(slug), async () => {
       const { entries } = await this.readEntries(slug);
       const entry = entries.find((e) => e.doc.id === taskId);
-      if (!entry) throw new VckbError('NOT_FOUND', `Tarefa não encontrada: ${taskId}`);
+      if (!entry) throw new VckbError('NOT_FOUND', `Task not found: ${taskId}`);
       await fs.rm(safeJoin(this.tasksDir(slug), entry.file));
     });
   }
@@ -497,7 +497,7 @@ export class BoardStore {
     };
   }
 
-  /** Próxima tarefa recomendada: a de maior prioridade em "todo" (desempate por order). */
+  /** Recommended next task: highest priority in "todo" (ties broken by order). */
   async nextTask(slug: string): Promise<Task | null> {
     return (await this.summary(slug, 1)).next[0] ?? null;
   }

@@ -1,1 +1,1 @@
-Leia e siga [AGENTS.md](./AGENTS.md): é a única fonte de instruções para agentes neste repositório.
+Read and follow [AGENTS.md](./AGENTS.md): it is the single source of instructions for agents in this repository.

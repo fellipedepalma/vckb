@@ -3,8 +3,9 @@ import { config } from 'dotenv';
 import { PACKAGE_ROOT } from './paths.js';
 
 /**
- * Carrega o .env da instalação do VCKB (não do cwd), para o CLI chamado dentro de
- * outro projeto não ler o .env daquele projeto. Variáveis já definidas no ambiente vencem.
+ * Loads the .env from the VCKB install directory (not the cwd), so the CLI called inside
+ * another project does not pick up that project's .env. Variables already set in the
+ * environment take precedence.
  */
 export function loadEnv(): void {
   config({ path: path.join(PACKAGE_ROOT, '.env'), quiet: true });

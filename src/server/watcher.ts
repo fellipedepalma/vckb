@@ -5,8 +5,8 @@ import { TEMP_FILE_RE } from '../core/fs-utils.js';
 import { SLUG_RE } from '../core/paths.js';
 
 /**
- * Observa boards/ e emite "change" ({ project }) com debounce por projeto.
- * Pega tanto escritas da própria API quanto edições feitas por agentes direto nos .md.
+ * Watches the boards directory and emits "change" ({ project }) debounced per project.
+ * Catches both the API's own writes and edits made by agents directly on the .md files.
  */
 export function watchBoards(root: string, events: EventEmitter, debounceMs = 150) {
   const timers = new Map<string, NodeJS.Timeout>();

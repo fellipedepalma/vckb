@@ -9,44 +9,42 @@ export interface Io {
   err: (s: string) => void;
 }
 
-const HELP = `vckb — kanban em arquivos Markdown
+const HELP = `vckb — Vibe Coding Kanban: a kanban made of Markdown files
 
-Uso:
+Usage:
   vckb projects
-  vckb list <projeto> [--status todo] [--label ui]
-  vckb show <projeto> T-001
-  vckb add <projeto> "título" [--priority high] [--label ui --label api] [--status todo] [--description "..."]
-  vckb move <projeto> T-001 doing
-  vckb done <projeto> T-001
-  vckb note <projeto> T-001 "texto"
-  vckb next <projeto>
+  vckb list <project> [--status todo] [--label ui]
+  vckb show <project> T-001
+  vckb add <project> "title" [--priority high] [--label ui --label api] [--status todo] [--description "..."]
+  vckb move <project> T-001 doing
+  vckb done <project> T-001
+  vckb note <project> T-001 "text"
+  vckb next <project>
 
-Opções globais:
-  --dir <caminho>   diretório boards/ (padrão: $VCKB_BOARDS_DIR ou ./boards da instalação)
-  --json            saída em JSON (para agentes/scripts)
-  -h, --help        esta ajuda
+Global options:
+  --dir <path>   boards directory (default: $VCKB_BOARDS_DIR or ./boards in the install dir)
+  --json         JSON output (for agents/scripts)
+  -h, --help     this help
 `;
-
-const PRIORITY_TAG: Record<Priority, string> = { high: 'alta', medium: 'média', low: 'baixa' };
 
 function line(t: Task): string {
   const prog = t.progress.total ? `  (${t.progress.done}/${t.progress.total})` : '';
   const labels = t.labels.length ? `  ${t.labels.map((l) => `#${l}`).join(' ')}` : '';
-  return `  ${t.id}  [${PRIORITY_TAG[t.priority]}]  ${t.title}${prog}${labels}`;
+  return `  ${t.id}  [${t.priority}]  ${t.title}${prog}${labels}`;
 }
 
 function detail(t: Task): string {
   return [
     `${t.id} — ${t.title}`,
-    `status: ${t.status} · prioridade: ${PRIORITY_TAG[t.priority]} · labels: ${t.labels.join(', ') || '—'}`,
-    `criada: ${t.created} · atualizada: ${t.updated} · arquivo: tasks/${t.file}`,
+    `status: ${t.status} · priority: ${t.priority} · labels: ${t.labels.join(', ') || '—'}`,
+    `created: ${t.created} · updated: ${t.updated} · file: tasks/${t.file}`,
     '',
     t.body.trim(),
   ].join('\n');
 }
 
 function need(v: string | undefined, what: string): string {
-  if (!v) throw new VckbError('INVALID', `Faltou ${what}. Veja: vckb --help`);
+  if (!v) throw new VckbError('INVALID', `Missing ${what}. See: vckb --help`);
   return v;
 }
 
@@ -68,7 +66,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
       },
     });
   } catch (err) {
-    io.err(`erro: ${(err as Error).message}\n`);
+    io.err(`error: ${(err as Error).message}\n`);
     return 2;
   }
   const { values: o, positionals } = parsed;
@@ -86,12 +84,12 @@ export async function run(argv: string[], io: Io): Promise<number> {
       case 'projects': {
         const projects = await store.listProjects();
         if (o.json) return json(projects), 0;
-        if (!projects.length) io.out(`Nenhum projeto em ${store.root}\n`);
+        if (!projects.length) io.out(`No projects in ${store.root}\n`);
         for (const p of projects) io.out(`${p.slug}  —  ${p.name}${p.description ? `: ${p.description}` : ''}\n`);
         return 0;
       }
       case 'list': {
-        const slug = need(project, '<projeto>');
+        const slug = need(project, '<project>');
         const label = o.label?.[0];
         const [board, tasks] = await Promise.all([
           store.getProject(slug),
@@ -106,55 +104,55 @@ export async function run(argv: string[], io: Io): Promise<number> {
         }
         const orphan = tasks.filter((t) => !board.columns.includes(t.status));
         if (orphan.length && !o.status) {
-          io.out(`? status desconhecido (${orphan.length})\n`);
+          io.out(`? unknown status (${orphan.length})\n`);
           for (const t of orphan) io.out(`${line(t)}  → "${t.status}"\n`);
         }
         return 0;
       }
       case 'show': {
-        const t = await store.getTask(need(project, '<projeto>'), need(a, '<id>'));
+        const t = await store.getTask(need(project, '<project>'), need(a, '<id>'));
         if (o.json) return json(t), 0;
         io.out(`${detail(t)}\n`);
         return 0;
       }
       case 'add': {
-        const t = await store.createTask(need(project, '<projeto>'), {
-          title: need(a, '"título"'),
+        const t = await store.createTask(need(project, '<project>'), {
+          title: need(a, '"title"'),
           priority: o.priority as Priority | undefined,
           labels: o.label,
           status: o.status,
           description: o.description,
         });
         if (o.json) return json(t), 0;
-        io.out(`Criada ${t.id} em "${t.status}": ${t.title}\n`);
+        io.out(`Created ${t.id} in "${t.status}": ${t.title}\n`);
         return 0;
       }
       case 'move':
       case 'done': {
         const status = cmd === 'done' ? 'done' : need(b, '<status>');
-        const t = await store.moveTask(need(project, '<projeto>'), need(a, '<id>'), status);
+        const t = await store.moveTask(need(project, '<project>'), need(a, '<id>'), status);
         if (o.json) return json(t), 0;
         io.out(`${t.id} → ${t.status}\n`);
         return 0;
       }
       case 'note': {
-        const t = await store.addNote(need(project, '<projeto>'), need(a, '<id>'), need(b, '"texto"'));
+        const t = await store.addNote(need(project, '<project>'), need(a, '<id>'), need(b, '"text"'));
         if (o.json) return json(t), 0;
-        io.out(`Nota adicionada em ${t.id}\n`);
+        io.out(`Note added to ${t.id}\n`);
         return 0;
       }
       case 'next': {
-        const t = await store.nextTask(need(project, '<projeto>'));
+        const t = await store.nextTask(need(project, '<project>'));
         if (o.json) return json(t), 0;
-        io.out(t ? `${detail(t)}\n` : 'Nenhuma tarefa em "todo".\n');
+        io.out(t ? `${detail(t)}\n` : 'No tasks in "todo".\n');
         return 0;
       }
       default:
-        io.err(`Comando desconhecido: ${cmd}\n\n${HELP}`);
+        io.err(`Unknown command: ${cmd}\n\n${HELP}`);
         return 2;
     }
   } catch (err) {
-    io.err(`erro: ${(err as Error).message}\n`);
+    io.err(`error: ${(err as Error).message}\n`);
     return 1;
   }
 }

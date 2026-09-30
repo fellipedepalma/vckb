@@ -4,13 +4,13 @@ import path from 'node:path';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Arquivos temporários/lock que o watcher e as listagens devem ignorar. */
+/** Temp/lock files that the watcher and listings must ignore. */
 export const TEMP_FILE_RE = /\.tmp-[a-z0-9]+$|\.vckb\.lock$/i;
 
 /**
- * Escrita atômica: grava em arquivo temporário no mesmo diretório e renomeia.
- * No Windows o rename pode falhar com EPERM/EBUSY se outro processo (antivírus,
- * editor, watcher) estiver com o arquivo aberto; tentamos algumas vezes.
+ * Atomic write: write to a temp file in the same directory, then rename it.
+ * On Windows the rename can fail with EPERM/EBUSY while another process (antivirus,
+ * editor, watcher) holds the file open, so we retry a few times.
  */
 export async function atomicWrite(file: string, data: string): Promise<void> {
   const tmp = `${file}.tmp-${randomBytes(6).toString('hex')}`;
@@ -36,8 +36,8 @@ const LOCK_STALE_MS = 10_000;
 const LOCK_TIMEOUT_MS = 5_000;
 
 /**
- * Lock simples entre processos (servidor, CLI, agentes) usando mkdir, que é atômico.
- * Serializa as escritas de um board para não perder atualizações nem duplicar IDs.
+ * Simple cross-process lock (server, CLI, agents) based on mkdir, which is atomic.
+ * Serializes writes to a board so updates aren't lost and IDs aren't duplicated.
  */
 export async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   const lock = path.join(dir, LOCK_NAME);
@@ -54,7 +54,7 @@ export async function withLock<T>(dir: string, fn: () => Promise<T>): Promise<T>
         continue;
       }
       if (Date.now() - start > LOCK_TIMEOUT_MS) {
-        throw new Error(`Timeout aguardando lock em ${lock}`);
+        throw new Error(`Timed out waiting for lock at ${lock}`);
       }
       await sleep(25);
     }

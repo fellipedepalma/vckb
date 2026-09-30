@@ -11,7 +11,7 @@ loadEnv();
 
 const token = process.env.VCKB_TOKEN ?? '';
 if (token.length < 16) {
-  console.error('[vckb] Defina VCKB_TOKEN (mínimo 16 caracteres) no .env. Veja .env.example.');
+  console.error('[vckb] Set VCKB_TOKEN (min. 16 characters) in .env. See .env.example.');
   process.exit(1);
 }
 
@@ -32,7 +32,7 @@ const app = createApp({ store, token, events, corsOrigins });
 const watcher = watchBoards(boardsDir, events);
 
 const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
-  console.log(`[vckb] API em http://${host}:${info.port}/api  (boards: ${boardsDir})`);
+  console.log(`[vckb] API at http://${host}:${info.port}/api  (boards: ${boardsDir})`);
 });
 
 const shutdown = async () => {

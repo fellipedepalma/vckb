@@ -5,6 +5,7 @@ export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 export const CHECKLIST_HEADING = 'Checklist';
+/** Part of the file format (kept in Portuguese for compatibility with existing boards). */
 export const NOTES_HEADING = 'Notas do agente';
 
 export interface ChecklistItem {
@@ -12,7 +13,7 @@ export interface ChecklistItem {
   done: boolean;
 }
 
-/** Tarefa como está no disco: frontmatter + corpo Markdown intacto. */
+/** A task as stored on disk: frontmatter + untouched Markdown body. */
 export interface TaskDoc {
   id: string;
   title: string;
@@ -22,7 +23,7 @@ export interface TaskDoc {
   order: number;
   created: string;
   updated: string;
-  /** Campos extras do frontmatter que não conhecemos: preservados na reescrita. */
+  /** Unknown frontmatter fields, preserved when the file is rewritten. */
   extra: Record<string, unknown>;
   body: string;
 }
@@ -42,15 +43,15 @@ function toLabels(v: unknown): string[] {
 }
 
 const refuseEngine = () => {
-  throw new Error('frontmatter deve ser YAML');
+  throw new Error('frontmatter must be YAML');
 };
 
 /**
- * Opções do gray-matter. Passar options também desliga o cache interno dele, que
- * devolveria o mesmo objeto mutável.
- * SEGURANÇA: o gray-matter aceita "---js" e avalia o frontmatter com eval(). Um .md
- * malicioso executaria código ao ser lido; por isso só YAML é aceito (checagem em
- * parseTask) e os motores de código ficam neutralizados como segunda barreira.
+ * gray-matter options. Passing options also disables its internal cache, which would
+ * hand back the same mutable object.
+ * SECURITY: gray-matter accepts "---js" and evaluates that frontmatter with eval(). A
+ * malicious .md would run code just by being read, so only YAML is accepted (checked in
+ * parseTask) and the code engines are neutralized as a second barrier.
  */
 const MATTER_OPTIONS = {
   language: 'yaml',
@@ -58,17 +59,17 @@ const MATTER_OPTIONS = {
 };
 
 /**
- * Lê um .md de tarefa. É tolerante com arquivos editados à mão (campos ausentes
- * ganham padrões), mas exige `id` e `title`.
+ * Reads a task .md file. Tolerant of hand-edited files (missing fields get defaults),
+ * but `id` and `title` are required.
  */
 export function parseTask(raw: string): TaskDoc {
   const lang = /^---([^\r\n]*)/.exec(raw)?.[1].trim().toLowerCase();
-  if (lang && lang !== 'yaml' && lang !== 'yml') throw new Error('frontmatter deve ser YAML');
+  if (lang && lang !== 'yaml' && lang !== 'yml') throw new Error('frontmatter must be YAML');
   const parsed = matter(raw, MATTER_OPTIONS as Parameters<typeof matter>[1]);
   const data = (parsed.data ?? {}) as Record<string, unknown>;
-  if (typeof data.id !== 'string' || !data.id.trim()) throw new Error('frontmatter sem "id"');
+  if (typeof data.id !== 'string' || !data.id.trim()) throw new Error('frontmatter is missing "id"');
   if (data.title === undefined || data.title === null || String(data.title).trim() === '') {
-    throw new Error('frontmatter sem "title"');
+    throw new Error('frontmatter is missing "title"');
   }
   const priority = PRIORITIES.includes(data.priority as Priority) ? (data.priority as Priority) : 'medium';
   const order = Number(data.order);
@@ -94,7 +95,7 @@ function scalar(v: unknown): string {
   return yaml.dump(v, { lineWidth: -1 }).trimEnd();
 }
 
-/** Serializa com ordem de campos estável e no mesmo estilo do formato documentado. */
+/** Serializes with a stable field order, in the same style as the documented format. */
 export function serializeTask(t: TaskDoc): string {
   const date = (d: string) => (DATE_RE.test(d) ? d : scalar(d));
   const lines = [
@@ -113,16 +114,16 @@ export function serializeTask(t: TaskDoc): string {
 }
 
 // ---------------------------------------------------------------------------
-// Corpo Markdown: descrição livre, "## Checklist" e "## Notas do agente".
-// Todas as funções devolvem um novo corpo alterando só a parte necessária.
+// Markdown body: free-form description, "## Checklist" and "## Notas do agente" (agent notes).
+// Every function returns a new body, changing only the part it is about.
 // ---------------------------------------------------------------------------
 
 interface Section {
-  /** Índice do início da linha do título "## ..." */
+  /** Index where the "## ..." heading line starts. */
   start: number;
-  /** Índice logo após a linha do título. */
+  /** Index right after the heading line. */
   contentStart: number;
-  /** Índice do próximo "## " (ou fim do corpo). */
+  /** Index of the next "## " heading (or end of body). */
   end: number;
 }
 
@@ -139,8 +140,8 @@ function findSection(body: string, heading: string): Section | null {
   return { start: m.index, contentStart, end };
 }
 
-// Sem quantificadores adjacentes sobre espaço (evita backtracking quadrático/ReDoS);
-// o texto é aparado em JS.
+// No adjacent quantifiers over whitespace (avoids quadratic backtracking / ReDoS);
+// the text is trimmed in JS instead.
 const CHECK_RE = /^[ \t]*[-*][ \t]+\[([ xX])\][ \t](.*)$/;
 
 export function getChecklist(body: string): ChecklistItem[] {
@@ -158,7 +159,7 @@ function checklistLines(items: ChecklistItem[]): string {
   return items.map((i) => `- [${i.done ? 'x' : ' '}] ${i.text.replace(/\r?\n/g, ' ').trim()}`).join('\n');
 }
 
-/** Substitui os itens da seção Checklist, preservando linhas que não são itens. */
+/** Replaces the items of the Checklist section, keeping lines that are not items. */
 export function setChecklist(body: string, items: ChecklistItem[]): string {
   const clean = items.filter((i) => i.text.trim());
   const sec = findSection(body, CHECKLIST_HEADING);
@@ -185,7 +186,7 @@ function descriptionEnd(body: string): number {
   return idx.length ? Math.min(...idx) : body.length;
 }
 
-/** Texto livre antes das seções Checklist/Notas. */
+/** Free-form text before the Checklist/notes sections. */
 export function getDescription(body: string): string {
   return body.slice(0, descriptionEnd(body)).trim();
 }
@@ -197,7 +198,7 @@ export function setDescription(body: string, description: string): string {
   return desc ? `${desc}\n\n${rest}` : rest;
 }
 
-/** Acrescenta "- AAAA-MM-DD: texto" ao fim da seção "Notas do agente" (cria se faltar). */
+/** Appends "- YYYY-MM-DD: text" to the end of the agent notes section (creating it if missing). */
 export function appendNote(body: string, text: string, date: string): string {
   const note = `- ${date}: ${text.replace(/\r?\n+/g, ' ').trim()}`;
   const sec = findSection(body, NOTES_HEADING);
@@ -220,7 +221,7 @@ export function newTaskBody(description: string, checklist: ChecklistItem[]): st
   );
 }
 
-/** "Título com Acentuação!" -> "titulo-com-acentuacao" */
+/** "Crème Brûlée & Co!" -> "creme-brulee-co" (accents stripped) */
 export function kebab(title: string): string {
   const s = title
     .normalize('NFD')
@@ -230,5 +231,5 @@ export function kebab(title: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 50)
     .replace(/-+$/, '');
-  return s || 'tarefa';
+  return s || 'task';
 }

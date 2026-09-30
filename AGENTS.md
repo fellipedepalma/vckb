@@ -1,79 +1,82 @@
 # AGENTS.md: VCKB (Vibe Coding Kanban)
 
-Instruções para qualquer agente de IA (Claude, Gemini, Codex etc.) que trabalhe **neste repositório**.
-`CLAUDE.md` e `GEMINI.md` apenas apontam para cá; este é o único arquivo com regras.
+Instructions for any AI agent (Claude, Gemini, Codex, etc.) working **on this repository**.
+`CLAUDE.md` and `GEMINI.md` only point here; this is the single source of rules.
 
-## O que é
+## What this is
 
-VCKB é um kanban minimalista cuja fonte da verdade são arquivos Markdown em `boards/`.
-Humanos usam a web UI e agentes usam o CLI `vckb`, a API REST ou editam os `.md` diretamente.
-Não há banco de dados.
+VCKB is a minimal kanban whose source of truth is Markdown files in a boards directory.
+Humans use the web UI; agents use the `vckb` CLI, the REST API, or edit the `.md` files directly.
+There is no database.
 
-## Fluxo de trabalho (obrigatório)
+## Workflow (mandatory)
 
-1. **Decisões combinadas.** Antes de implementar algo não trivial, descreva a abordagem (arquivos
-   afetados, trade-offs) e espere o "ok" do mantenedor. Não mude o escopo sem perguntar.
-2. **Implementação com evidências.** Toda entrega vem com provas concretas: saída de
-   `npm test` e `npm run typecheck`, os comandos rodados com a saída relevante e prints/logs quando
-   houver UI. "Deve funcionar" não é evidência.
-3. **Revisão e aprovação.** Pare ao fim de cada etapa e apresente as evidências. O mantenedor
-   revisa e aprova.
-4. **Commit.** Só depois da aprovação explícita. Use mensagens no imperativo e em português
-   (ex.: `Adiciona endpoint de summary`), um assunto por commit.
+1. **Agreed decisions.** Before implementing anything non-trivial, describe the approach (files
+   affected, trade-offs) and wait for the maintainer's OK. Don't change scope without asking.
+2. **Implementation with evidence.** Every delivery comes with concrete proof: output of
+   `npm test` and `npm run typecheck`, the commands you ran with their relevant output, and
+   screenshots/logs when there is UI. "Should work" is not evidence.
+3. **Review and approval.** Stop at the end of each stage and present the evidence. The
+   maintainer reviews and approves.
+4. **Commit.** Only after explicit approval. Use [Conventional Commits](https://www.conventionalcommits.org/)
+   (e.g. `feat: add summary endpoint`), one logical change per commit.
 
-Quando um teste falhar ou algo se comportar de forma inesperada, investigue a causa raiz
-(reproduzir → hipótese → verificar) antes de propor uma correção.
+When a test fails or something behaves unexpectedly, find the root cause
+(reproduce → hypothesis → verify) before proposing a fix.
 
 ## Stack
 
-- Node 20+, TypeScript (ESM, `module: NodeNext`, imports com sufixo `.js`)
-- Backend: Hono + `@hono/node-server`; tempo real com chokidar → SSE
-- Arquivos: gray-matter (somente leitura de frontmatter **YAML**), js-yaml (escrita)
-- CLI: `node:util` `parseArgs`, sem servidor (fala direto com os arquivos)
-- Frontend: React + Vite + Tailwind + dnd-kit (em `web/`)
-- Testes: vitest
+- Node 22.12+, TypeScript (ESM, `module: NodeNext`, imports with the `.js` suffix)
+- Backend: Hono + `@hono/node-server`; real time via chokidar → SSE
+- Files: gray-matter (reading **YAML** frontmatter only), js-yaml (writing)
+- CLI: `node:util` `parseArgs`, no server needed (talks to the files directly)
+- Frontend: React + Vite + Tailwind + dnd-kit (in `web/`, in progress)
+- Tests: vitest
 
-## Comandos
+## Commands
 
-| Tarefa | Comando |
+| Task | Command |
 |---|---|
-| Instalar | `npm install` |
-| Dev (API + UI) | `npm run dev` (chega com a web UI) |
-| Só a API | `npm run dev:server` |
-| Testes | `npm test` |
+| Install | `npm install` |
+| Dev (API + UI) | `npm run dev` (lands with the web UI) |
+| API only | `npm run dev:server` |
+| Tests | `npm test` |
 | Typecheck | `npm run typecheck` |
+| Dependency audit | `npm run audit` |
 | Build | `npm run build` |
-| Produção | `npm start` |
-| CLI | `npm run vckb -- <comando>` ou `vckb <comando>` após `npm link` |
+| Production | `npm start` |
+| CLI | `npm run vckb -- <command>` or `vckb <command>` after `npm link` |
 | Docker | `docker compose up --build` |
 
-## Estrutura
+## Layout
 
 ```
-src/core/     formato de arquivo, validação, BoardStore (toda regra de negócio fica aqui)
-src/server/   Hono app (rotas, auth, SSE) + watcher
-src/cli/      CLI vckb
-web/          UI React
-tests/        vitest (core, API, CLI, segurança)
-boards/       dados (um diretório por projeto). Só boards/exemplo/ é versionado; os
-              boards reais ficam fora do repositório (VCKB_BOARDS_DIR)
+src/core/     file format, validation, BoardStore (all business rules live here)
+src/server/   Hono app (routes, auth, SSE) + watcher
+src/cli/      vckb CLI
+web/          React UI (in progress)
+tests/        vitest (core, API, CLI, security)
+boards/       data (one directory per project). Only boards/exemplo/ is versioned;
+              real boards live outside the repo (VCKB_BOARDS_DIR)
 ```
 
-## Convenções de código
+## Code conventions
 
-- Toda regra de negócio fica em `src/core/store.ts`. API e CLI são camadas finas por cima dele.
-- Escritas em disco sempre com `atomicWrite` e dentro de `withLock` do projeto.
-- Todo caminho montado a partir de entrada externa passa por `assertSlug`/`normalizeTaskId` **e**
-  `safeJoin`. Nunca use `path.join` com entrada do usuário.
-- Nunca troque o parser do frontmatter por algo que aceite `---js` (o gray-matter faria `eval`).
-- Preserve o corpo Markdown: altere só a seção necessária (`setChecklist`, `setDescription`,
+- All business rules live in `src/core/store.ts`. The API and CLI are thin layers on top of it.
+- Disk writes always go through `atomicWrite` and inside the project's `withLock`.
+- Every path built from external input goes through `assertSlug`/`normalizeTaskId` **and**
+  `safeJoin`. Never `path.join` user input.
+- Never swap the frontmatter parser for something that accepts `---js` (gray-matter would `eval` it).
+- Preserve the Markdown body: change only the section you need (`setChecklist`, `setDescription`,
   `appendNote`).
-- Mensagens para o usuário em português; identificadores de código em inglês.
-- Todo bug corrigido ganha um teste de regressão. Achados de segurança vão para `tests/security.test.ts`.
-- Estilo: 2 espaços, aspas simples, ponto e vírgula, sem `any` (exceto em testes).
+- Everything contributors read (code, comments, messages, tests, docs) is in English, except
+  `README.pt-BR.md`, the Portuguese block in `AGENT-PROTOCOL.md`, and the `## Notas do agente`
+  heading, which is part of the file format.
+- Every bug fix gets a regression test. Security findings go in `tests/security.test.ts`.
+- Style: 2 spaces, single quotes, semicolons, no `any` (except in tests).
 
-## Segurança
+## Security
 
-- A API exige `Authorization: Bearer $VCKB_TOKEN` (comparação em tempo constante).
-- O servidor ouve em `127.0.0.1` por padrão. CORS fica desligado, a menos que `VCKB_CORS_ORIGINS` seja definido.
-- Markdown renderizado na UI não pode interpretar HTML cru.
+- The API requires `Authorization: Bearer $VCKB_TOKEN` (constant-time comparison).
+- The server listens on `127.0.0.1` by default. CORS is off unless `VCKB_CORS_ORIGINS` is set.
+- Markdown rendered in the UI must never interpret raw HTML.

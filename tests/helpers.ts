@@ -10,7 +10,7 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 
-/** Diretório temporário isolado por teste; `boards` fica dentro dele (e há espaço "fora" para checar traversal). */
+/** Isolated temp dir per test; `boards` lives inside it (leaving room "outside" to check traversal). */
 export async function tempWorkspace() {
   const base = await mkdtemp(path.join(tmpdir(), 'vckb-test-'));
   dirs.push(base);

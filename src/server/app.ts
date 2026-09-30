@@ -10,20 +10,20 @@ import type { BoardStore, CreateTaskInput, UpdateTaskInput } from '../core/store
 export interface AppOptions {
   store: BoardStore;
   token: string;
-  /** Emissor de eventos "change" ({ project }) vindo do watcher. */
+  /** Emitter of "change" events ({ project }) coming from the watcher. */
   events?: EventEmitter;
-  /** Origens liberadas para CORS. Vazio = sem CORS (mesma origem apenas). */
+  /** Origins allowed by CORS. Empty = no CORS (same origin only). */
   corsOrigins?: string[];
-  /** Limite do corpo das requisições em bytes (padrão 256 KiB). */
+  /** Request body limit in bytes (default 256 KiB). */
   maxBodyBytes?: number;
-  /** Intervalo do ping SSE em ms (padrão 25 s). */
+  /** SSE ping interval in ms (default 25 s). */
   sseHeartbeatMs?: number;
 }
 
 /**
- * Compara o header Authorization com o token em tempo constante.
- * Os dois lados passam por SHA-256 para ficarem com o mesmo tamanho, então nem o
- * comprimento do token vaza por timing.
+ * Compares the Authorization header with the token in constant time.
+ * Both sides are hashed with SHA-256 so they have the same length; not even the
+ * token length leaks through timing.
  */
 export function bearerMatches(header: string | undefined, token: string): boolean {
   if (!header || !token) return false;
@@ -41,15 +41,15 @@ async function readJson(c: Context): Promise<Record<string, unknown>> {
   try {
     data = await c.req.json();
   } catch {
-    throw new VckbError('INVALID', 'Corpo da requisição deve ser JSON válido');
+    throw new VckbError('INVALID', 'Request body must be valid JSON');
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new VckbError('INVALID', 'Corpo da requisição deve ser um objeto JSON');
+    throw new VckbError('INVALID', 'Request body must be a JSON object');
   }
   return data as Record<string, unknown>;
 }
 
-/** Copia só os campos permitidos (nada de chaves arbitrárias chegando ao store). */
+/** Copies only allowed fields (no arbitrary keys reach the store). */
 function pick<T>(src: Record<string, unknown>, keys: (keyof T & string)[]): T {
   const out: Record<string, unknown> = {};
   for (const k of keys) if (Object.hasOwn(src, k)) out[k] = src[k];
@@ -60,7 +60,7 @@ const TASK_FIELDS = ['title', 'status', 'priority', 'labels', 'body', 'descripti
 
 export function createApp(opts: AppOptions) {
   const { store, token, events } = opts;
-  if (!token) throw new Error('VCKB_TOKEN não definido');
+  if (!token) throw new Error('VCKB_TOKEN is not set');
 
   const app = new Hono();
   const api = new Hono();
@@ -80,7 +80,7 @@ export function createApp(opts: AppOptions) {
   api.use('*', async (c, next) => {
     if (!bearerMatches(c.req.header('Authorization'), token)) {
       c.header('WWW-Authenticate', 'Bearer');
-      return c.json({ error: 'Não autorizado' }, 401);
+      return c.json({ error: 'Unauthorized' }, 401);
     }
     await next();
   });
@@ -89,7 +89,7 @@ export function createApp(opts: AppOptions) {
     '*',
     bodyLimit({
       maxSize: opts.maxBodyBytes ?? 256 * 1024,
-      onError: (c) => c.json({ error: 'Corpo da requisição muito grande' }, 413),
+      onError: (c) => c.json({ error: 'Request body too large' }, 413),
     }),
   );
 
@@ -159,10 +159,10 @@ export function createApp(opts: AppOptions) {
   app.onError((err, c) => {
     if (err instanceof VckbError) return c.json({ error: err.message }, STATUS[err.code]);
     console.error('[vckb]', err);
-    return c.json({ error: 'Erro interno' }, 500);
+    return c.json({ error: 'Internal error' }, 500);
   });
 
-  app.notFound((c) => c.json({ error: 'Não encontrado' }, 404));
+  app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
   return app;
 }

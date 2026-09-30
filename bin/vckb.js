@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Num checkout (src/ presente) roda o TypeScript via tsx, sempre atualizado;
-// na imagem de produção (só dist/) usa o build.
+// In a checkout (src/ present) run the TypeScript sources via tsx, always up to date;
+// in the production image (dist/ only) use the build.
 import { existsSync } from 'node:fs';
 
 const src = new URL('../src/cli/index.ts', import.meta.url);
