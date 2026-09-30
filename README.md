@@ -46,12 +46,12 @@ Install the CLI globally (it works without the server running):
 ```bash
 npm link
 vckb projects
-vckb list exemplo
+vckb list example
 ```
 
 ## Keep your real boards out of this repo
 
-`boards/exemplo/` is the only board versioned here. For your own projects, the recommended setup is:
+`boards/example/` is the only board versioned here. For your own projects, the recommended setup is:
 
 1. Create a **separate private git repository** for your boards, e.g. `~/vckb-boards`.
 2. Point VCKB at it in `.env`:
@@ -113,7 +113,7 @@ All endpoints require `Authorization: Bearer $VCKB_TOKEN`. JSON in, JSON out.
 `position` (0 = top) places the task inside its target column and renumbers the others.
 
 ```bash
-curl -s -H "Authorization: Bearer $VCKB_TOKEN" http://127.0.0.1:8787/api/projects/exemplo/summary
+curl -s -H "Authorization: Bearer $VCKB_TOKEN" http://127.0.0.1:8787/api/projects/example/summary
 ```
 
 ## File format

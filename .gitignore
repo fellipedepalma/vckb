@@ -10,7 +10,7 @@ dist/
 # Data: real boards live outside this repo (see VCKB_BOARDS_DIR).
 # Only the example board is versioned.
 boards/*
-!boards/exemplo/
+!boards/example/
 
 # Atomic-write temp files and locks
 *.tmp-*

@@ -46,12 +46,12 @@ Instale o CLI globalmente (funciona sem o servidor rodando):
 ```bash
 npm link
 vckb projects
-vckb list exemplo
+vckb list example
 ```
 
 ## Mantenha seus boards reais fora deste repositório
 
-Só o `boards/exemplo/` é versionado aqui. Para os seus projetos, o fluxo recomendado é:
+Só o `boards/example/` é versionado aqui. Para os seus projetos, o fluxo recomendado é:
 
 1. Crie um **repositório git privado separado** para os boards, por exemplo `~/vckb-boards`.
 2. Aponte o VCKB para ele no `.env`:

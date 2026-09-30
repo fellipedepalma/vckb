@@ -56,7 +56,7 @@ src/server/   Hono app (routes, auth, SSE) + watcher
 src/cli/      vckb CLI
 web/          React UI (in progress)
 tests/        vitest (core, API, CLI, security)
-boards/       data (one directory per project). Only boards/exemplo/ is versioned;
+boards/       data (one directory per project). Only boards/example/ is versioned;
               real boards live outside the repo (VCKB_BOARDS_DIR)
 ```
 

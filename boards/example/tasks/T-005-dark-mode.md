@@ -1,6 +1,6 @@
 ---
 id: T-005
-title: Modo escuro
+title: Dark mode
 status: backlog
 priority: low
 labels: [ui]
@@ -8,9 +8,9 @@ order: 10
 created: 2026-09-30
 updated: 2026-09-30
 ---
-Respeitar `prefers-color-scheme` e permitir alternar manualmente.
+Respect `prefers-color-scheme` and allow switching manually.
 
 ## Checklist
 
-## Notas do agente
+## Agent notes
 
