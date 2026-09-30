@@ -15,7 +15,10 @@ export function watchBoards(root: string, events: EventEmitter, debounceMs = 150
     depth: 3,
     followSymlinks: false,
     ignored: (p: string) => TEMP_FILE_RE.test(p) || p.includes('.vckb.lock'),
-    awaitWriteFinish: { stabilityThreshold: 80, pollInterval: 20 },
+    // No awaitWriteFinish: when a file disappeared while chokidar waited for its size to settle,
+    // neither "add" nor "unlink" was emitted and clients stayed stale. The debounce below already
+    // coalesces bursts, VCKB's own writes are atomic renames, and a slow hand-written file keeps
+    // emitting "change" until its last write, so the final refetch reads the final content.
   });
 
   watcher.on('all', (_event, file) => {
