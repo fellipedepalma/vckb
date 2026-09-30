@@ -554,6 +554,12 @@ export class BoardStore {
     return { tasks, warnings };
   }
 
+  /** Everything the board view needs, from a single consistent read of the files. */
+  async board(slug: string): Promise<{ project: Project; tasks: Task[]; warnings: BoardWarning[] }> {
+    const { board, entries, warnings } = await this.scan(slug);
+    return { project: board, tasks: entries.map(toTask), warnings };
+  }
+
   async listTasks(slug: string, filter: { status?: string; label?: string } = {}): Promise<Task[]> {
     return (await this.scanTasks(slug, filter)).tasks;
   }

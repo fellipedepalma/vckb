@@ -5,6 +5,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { serveWeb } from './static.js';
 import { VckbError } from '../core/errors.js';
 import type { BoardStore, CreateTaskInput, Task, UpdateTaskInput } from '../core/store.js';
 import {
@@ -39,6 +40,8 @@ export interface AppOptions {
   trustProxy?: boolean;
   /** Backoff settings for failed logins and failed Bearer tokens. */
   rateLimit?: RateLimitOptions;
+  /** Directory of the built web UI (dist/web). When unset, only the API is served. */
+  webRoot?: string;
   /** Injectable clock in ms (tests). */
   now?: () => number;
 }
@@ -323,6 +326,8 @@ export function createApp(opts: AppOptions) {
 
   api.get('/projects/:slug/summary', async (c) => c.json(await store.summary(c.req.param('slug'))));
 
+  api.get('/projects/:slug/board', async (c) => c.json(await store.board(c.req.param('slug'))));
+
   api.get('/events', (c) =>
     streamSSE(c, async (stream) => {
       let open = true;
@@ -343,6 +348,16 @@ export function createApp(opts: AppOptions) {
   );
 
   app.route('/api', api);
+
+  // Built web UI on the same origin (so the session cookie, CSRF check and CSP all apply to it).
+  // /api keeps its own JSON 404s; everything else is the UI with an SPA fallback.
+  if (opts.webRoot) {
+    const web = serveWeb(opts.webRoot);
+    app.get('*', async (c): Promise<Response> => {
+      if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: 'Not found' }, 404);
+      return web(c);
+    });
+  }
 
   app.onError((err, c) => {
     if (err instanceof VckbError) return c.json({ error: err.message }, STATUS[err.code]);

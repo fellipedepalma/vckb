@@ -1,8 +1,9 @@
 import { EventEmitter } from 'node:events';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
+import path from 'node:path';
 import { serve } from '@hono/node-server';
 import { loadEnv } from '../core/env.js';
-import { resolveBoardsDir } from '../core/paths.js';
+import { PACKAGE_ROOT, resolveBoardsDir } from '../core/paths.js';
 import { BoardStore } from '../core/store.js';
 import { createApp } from './app.js';
 import { readServerConfig } from './config.js';
@@ -22,11 +23,16 @@ await fs.mkdir(boardsDir, { recursive: true });
 const events = new EventEmitter();
 events.setMaxListeners(100);
 const store = new BoardStore(boardsDir);
-const app = createApp({ store, token, events, corsOrigins, allowedHosts, allowedOrigins, trustProxy });
+// The built UI (npm run build) is served on the same origin when present.
+const webDir = path.join(PACKAGE_ROOT, 'dist', 'web');
+const webRoot = existsSync(path.join(webDir, 'index.html')) ? webDir : undefined;
+const app = createApp({ store, token, events, corsOrigins, allowedHosts, allowedOrigins, trustProxy, webRoot });
 const watcher = watchBoards(boardsDir, events);
 
 const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
-  console.log(`[vckb] API at http://${host}:${info.port}/api  (boards: ${boardsDir})`);
+  const url = `http://${host.includes(':') ? `[${host}]` : host}:${info.port}`;
+  console.log(`[vckb] API at ${url}/api  (boards: ${boardsDir})`);
+  console.log(webRoot ? `[vckb] Web UI at ${url}/` : '[vckb] Web UI not built (npm run build); serving the API only');
 });
 
 const shutdown = async () => {
