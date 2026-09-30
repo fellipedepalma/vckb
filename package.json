@@ -28,8 +28,7 @@
     "node": ">=22.12"
   },
   "bin": {
-    "vckb": "bin/vckb.js",
-    "quadro": "bin/vckb.js"
+    "vckb": "bin/vckb.js"
   },
   "scripts": {
     "dev:server": "tsx watch src/server/index.ts",

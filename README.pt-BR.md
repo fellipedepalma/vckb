@@ -89,8 +89,7 @@ vckb next <projeto>                     # tarefa de maior prioridade em "todo"
 Globais: --dir <caminho>   --json   -h/--help
 ```
 
-O `vckb add` cria na primeira coluna (`backlog` por padrão). O comando também responde pelo alias
-antigo `quadro`.
+O `vckb add` cria na primeira coluna (`backlog` por padrão).
 
 ## API REST
 

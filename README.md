@@ -88,8 +88,7 @@ vckb next <project>                     # highest-priority task in "todo"
 Global: --dir <path>   --json   -h/--help
 ```
 
-`vckb add` creates tasks in the first column (`backlog` by default). `vckb` is also available
-under its legacy alias `quadro`.
+`vckb add` creates tasks in the first column (`backlog` by default).
 
 ## REST API
 
