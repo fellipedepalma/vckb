@@ -21,7 +21,7 @@
     "url": "git+https://github.com/fellipedepalma/vckb.git"
   },
   "license": "MIT",
-  "author": "Fellipe de Palma",
+  "author": "Fellipe",
   "type": "module",
   "private": true,
   "engines": {

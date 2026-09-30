@@ -211,4 +211,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) (rules for AI 
 
 ## License
 
-[MIT](LICENSE) © 2026 Fellipe de Palma
+[MIT](LICENSE) © 2026 Fellipe

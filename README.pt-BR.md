@@ -200,4 +200,4 @@ Veja o [CONTRIBUTING.md](CONTRIBUTING.md) e o [AGENTS.md](AGENTS.md) (regras par
 
 ## Licença
 
-[MIT](LICENSE) © 2026 Fellipe de Palma
+[MIT](LICENSE) © 2026 Fellipe
