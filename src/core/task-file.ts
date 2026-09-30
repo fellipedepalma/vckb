@@ -5,8 +5,13 @@ export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 export const CHECKLIST_HEADING = 'Checklist';
-/** Part of the file format (kept in Portuguese for compatibility with existing boards). */
-export const NOTES_HEADING = 'Notas do agente';
+/** Agent-notes heading used for new tasks. */
+export const NOTES_HEADING = 'Agent notes';
+/**
+ * Agent-notes headings accepted when reading/appending. "Notas do agente" is the Portuguese
+ * form used by older boards; whichever heading a task already has is preserved.
+ */
+export const NOTES_HEADINGS = [NOTES_HEADING, 'Notas do agente'] as const;
 
 export interface ChecklistItem {
   text: string;
@@ -114,7 +119,7 @@ export function serializeTask(t: TaskDoc): string {
 }
 
 // ---------------------------------------------------------------------------
-// Markdown body: free-form description, "## Checklist" and "## Notas do agente" (agent notes).
+// Markdown body: free-form description, "## Checklist" and "## Agent notes" (or "## Notas do agente").
 // Every function returns a new body, changing only the part it is about.
 // ---------------------------------------------------------------------------
 
@@ -129,8 +134,10 @@ interface Section {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function findSection(body: string, heading: string): Section | null {
-  const re = new RegExp(`^##[ \\t]+${escapeRe(heading)}[ \\t]*\\r?$`, 'im');
+/** Finds the first section whose heading matches any of `headings` (case-insensitive). */
+function findSection(body: string, headings: string | readonly string[]): Section | null {
+  const alternatives = (typeof headings === 'string' ? [headings] : headings).map(escapeRe).join('|');
+  const re = new RegExp(`^##[ \\t]+(?:${alternatives})[ \\t]*\\r?$`, 'im');
   const m = re.exec(body);
   if (!m) return null;
   let contentStart = m.index + m[0].length;
@@ -166,7 +173,7 @@ export function setChecklist(body: string, items: ChecklistItem[]): string {
   if (!sec) {
     if (!clean.length) return body;
     const block = `## ${CHECKLIST_HEADING}\n\n${checklistLines(clean)}\n\n`;
-    const notes = findSection(body, NOTES_HEADING);
+    const notes = findSection(body, NOTES_HEADINGS);
     if (notes) return body.slice(0, notes.start) + block + body.slice(notes.start);
     return `${body.replace(/\s*$/, '')}${body.trim() ? '\n\n' : ''}${block}`;
   }
@@ -180,7 +187,7 @@ export function setChecklist(body: string, items: ChecklistItem[]): string {
 }
 
 function descriptionEnd(body: string): number {
-  const idx = [findSection(body, CHECKLIST_HEADING), findSection(body, NOTES_HEADING)]
+  const idx = [findSection(body, CHECKLIST_HEADING), findSection(body, NOTES_HEADINGS)]
     .filter((s): s is Section => s !== null)
     .map((s) => s.start);
   return idx.length ? Math.min(...idx) : body.length;
@@ -201,7 +208,7 @@ export function setDescription(body: string, description: string): string {
 /** Appends "- YYYY-MM-DD: text" to the end of the agent notes section (creating it if missing). */
 export function appendNote(body: string, text: string, date: string): string {
   const note = `- ${date}: ${text.replace(/\r?\n+/g, ' ').trim()}`;
-  const sec = findSection(body, NOTES_HEADING);
+  const sec = findSection(body, NOTES_HEADINGS);
   if (!sec) {
     const base = body.replace(/\s*$/, '');
     return `${base}${base ? '\n\n' : ''}## ${NOTES_HEADING}\n\n${note}\n`;

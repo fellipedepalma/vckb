@@ -85,7 +85,7 @@ vckb show <projeto> T-001
 vckb add <projeto> "título" [--priority high] [--label ui --label api] [--status todo] [--description "..."]
 vckb move <projeto> T-001 doing
 vckb done <projeto> T-001
-vckb note <projeto> T-001 "texto"       # acrescenta em "## Notas do agente"
+vckb note <projeto> T-001 "texto"       # acrescenta em "## Agent notes"
 vckb next <projeto>                     # tarefa de maior prioridade em "todo"
 
 Globais: --dir <caminho>   --json   -h/--help
@@ -132,7 +132,7 @@ Descrição livre em Markdown.
 - [ ] item 1
 - [x] item 2
 
-## Notas do agente
+## Agent notes
 (agentes anotam decisões e o que foi feito aqui)
 ```
 
@@ -140,6 +140,8 @@ Descrição livre em Markdown.
 - Toda escrita é atômica (arquivo temporário + rename). Só o frontmatter e a seção alterada mudam;
   o resto do corpo é preservado byte a byte, assim como campos desconhecidos do frontmatter.
 - O frontmatter precisa ser YAML. Outras linguagens do gray-matter (ex.: `---js`) são rejeitadas de propósito.
+- Os títulos `## Checklist` e `## Agent notes` fazem parte do formato. `## Notas do agente` também é aceito
+  para as notas; o título que a tarefa já tiver é sempre preservado.
 
 ## Protocolo para agentes
 
@@ -149,7 +151,7 @@ para o `AGENTS.md` de cada projeto, substituindo `{{VCKB_BOARDS}}` e `{{PROJETO}
 1. Ler `<boards>/<projeto>/tasks/` antes de começar.
 2. Pegar tarefas de `todo` por prioridade.
 3. Mover para `doing` ao iniciar e para `review` ao terminar, **nunca para `done`**.
-4. Marcar o checklist e registrar decisões em "Notas do agente".
+4. Marcar o checklist e registrar decisões em "Agent notes".
 5. Criar em `backlog` o trabalho novo que descobrir.
 6. Usar o CLI `vckb` ou editar os arquivos respeitando o formato.
 

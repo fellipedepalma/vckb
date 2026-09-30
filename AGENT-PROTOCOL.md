@@ -30,7 +30,8 @@ This project's tasks live in VCKB as Markdown files:
 ### Lifecycle
 1. When you **start**: `vckb move {{PROJECT}} T-XXX doing`
 2. While working: tick finished `## Checklist` items (`- [ ]` → `- [x]`) and record decisions,
-   trade-offs and what was done under `## Notas do agente` (agent notes):
+   trade-offs and what was done under `## Agent notes` (older tasks may use `## Notas do agente`; keep
+   whichever heading the task already has):
    `vckb note {{PROJECT}} T-XXX "Chose X because Y; files changed: ..."`
 3. When you **finish**: `vckb move {{PROJECT}} T-XXX review`
 4. **Never move a task to `done`.** Only the user approves and moves tasks to `done`.
@@ -62,7 +63,7 @@ Free-form Markdown description.
 
 - [ ] item
 
-## Notas do agente
+## Agent notes
 
 - 2026-09-30: what was decided/done
 ```
@@ -113,7 +114,8 @@ As tarefas deste projeto ficam no VCKB, em arquivos Markdown:
 ### Ciclo de vida
 1. Ao **iniciar**: `vckb move {{PROJETO}} T-XXX doing`
 2. Durante o trabalho: marque os itens concluídos do `## Checklist` (`- [ ]` → `- [x]`) e registre
-   decisões, trade-offs e o que foi feito em `## Notas do agente`:
+   decisões, trade-offs e o que foi feito em `## Agent notes` (tarefas antigas podem usar
+   `## Notas do agente`; mantenha o título que a tarefa já tiver):
    `vckb note {{PROJETO}} T-XXX "Escolhi X porque Y; arquivos alterados: ..."`
 3. Ao **terminar**: `vckb move {{PROJETO}} T-XXX review`
 4. **Nunca mova para `done`.** Quem aprova e move para `done` é o usuário.
@@ -145,7 +147,7 @@ Descrição livre em Markdown.
 
 - [ ] item
 
-## Notas do agente
+## Agent notes
 
 - 2026-09-30: o que foi decidido/feito
 ```

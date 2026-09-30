@@ -122,15 +122,42 @@ describe('Markdown body', () => {
   });
 
   it('appendNote creates the section if missing and leaves later sections alone', () => {
-    expect(appendNote('Just text\n', 'hi', '2026-09-30')).toBe('Just text\n\n## Notas do agente\n\n- 2026-09-30: hi\n');
+    expect(appendNote('Just text\n', 'hi', '2026-09-30')).toBe('Just text\n\n## Agent notes\n\n- 2026-09-30: hi\n');
     const mid = appendNote('## Notas do agente\n- a\n\n## Extra\nend\n', 'b', 'D');
     expect(mid).toBe('## Notas do agente\n- a\n- D: b\n\n## Extra\nend\n');
   });
 
   it('newTaskBody generates the default skeleton', () => {
     expect(newTaskBody('Desc', [{ text: 'a', done: false }])).toBe(
-      'Desc\n\n## Checklist\n\n- [ ] a\n\n## Notas do agente\n',
+      'Desc\n\n## Checklist\n\n- [ ] a\n\n## Agent notes\n',
     );
+  });
+
+  describe('agent-notes heading: "## Agent notes" and "## Notas do agente"', () => {
+    const en = 'Desc\n\n## Checklist\n\n- [ ] a\n\n## Agent notes\n\n- 2026-09-01: old\n';
+    const pt = 'Desc\n\n## Checklist\n\n- [ ] a\n\n## Notas do agente\n\n- 2026-09-01: old\n';
+
+    it('appendNote preserves whichever heading the task already has', () => {
+      expect(appendNote(en, 'new', '2026-09-30')).toBe(`${en}- 2026-09-30: new\n`);
+      expect(appendNote(pt, 'new', '2026-09-30')).toBe(`${pt}- 2026-09-30: new\n`);
+      expect(appendNote(pt, 'x', 'D')).not.toContain('Agent notes');
+      expect(appendNote(en, 'x', 'D')).not.toContain('Notas do agente');
+    });
+
+    it('both headings end the description and anchor a new checklist', () => {
+      for (const body of [en, pt]) {
+        expect(getDescription(body)).toBe('Desc');
+        expect(getChecklist(body)).toEqual([{ text: 'a', done: false }]);
+      }
+      expect(setChecklist('Text\n\n## Agent notes\n- x\n', [{ text: 'a', done: false }])).toBe(
+        'Text\n\n## Checklist\n\n- [ ] a\n\n## Agent notes\n- x\n',
+      );
+      expect(getDescription('Text\n\n## agent NOTES\n- x\n')).toBe('Text');
+    });
+
+    it('new tasks use "## Agent notes"', () => {
+      expect(newTaskBody('', [])).toBe('## Checklist\n\n## Agent notes\n');
+    });
   });
 
   it('kebab strips accents and symbols', () => {

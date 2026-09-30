@@ -84,7 +84,7 @@ vckb show <project> T-001
 vckb add <project> "title" [--priority high] [--label ui --label api] [--status todo] [--description "..."]
 vckb move <project> T-001 doing
 vckb done <project> T-001
-vckb note <project> T-001 "text"        # appends to "## Notas do agente"
+vckb note <project> T-001 "text"        # appends to "## Agent notes"
 vckb next <project>                     # highest-priority task in "todo"
 
 Global: --dir <path>   --json   -h/--help
@@ -143,7 +143,7 @@ Free-form Markdown description.
 - [ ] item 1
 - [x] item 2
 
-## Notas do agente
+## Agent notes
 (agents record decisions and what was done here)
 ```
 
@@ -151,7 +151,8 @@ Free-form Markdown description.
 - All writes are atomic (temp file + rename). Only the frontmatter and the touched section change;
   the rest of the Markdown body is preserved byte for byte, along with unknown frontmatter fields.
 - Frontmatter must be YAML. Other gray-matter languages (e.g. `---js`) are rejected on purpose.
-- The section headings `## Checklist` and `## Notas do agente` ("agent notes") are part of the format.
+- The section headings `## Checklist` and `## Agent notes` are part of the format. `## Notas do agente`
+  (Portuguese) is accepted as an alias for agent notes; an existing heading is always preserved.
 
 ## Agent protocol
 

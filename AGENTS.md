@@ -70,8 +70,9 @@ boards/       data (one directory per project). Only boards/exemplo/ is versione
 - Preserve the Markdown body: change only the section you need (`setChecklist`, `setDescription`,
   `appendNote`).
 - Everything contributors read (code, comments, messages, tests, docs) is in English, except
-  `README.pt-BR.md`, the Portuguese block in `AGENT-PROTOCOL.md`, and the `## Notas do agente`
-  heading, which is part of the file format.
+  `README.pt-BR.md` and the Portuguese block in `AGENT-PROTOCOL.md`.
+- Agent notes: new tasks use `## Agent notes`; `## Notas do agente` is accepted and preserved
+  (`NOTES_HEADINGS` in `src/core/task-file.ts`).
 - Every bug fix gets a regression test. Security findings go in `tests/security.test.ts`.
 - Style: 2 spaces, single quotes, semicolons, no `any` (except in tests).
 

@@ -35,7 +35,7 @@ describe('create task', () => {
     const raw = await readFile(path.join(boards, 'app', 'tasks', a.file), 'utf8');
     expect(raw).toBe(
       '---\nid: T-001\ntitle: Café Login Page\nstatus: backlog\npriority: high\nlabels: [ui]\norder: 10\n' +
-        'created: 2026-09-30\nupdated: 2026-09-30\n---\n## Checklist\n\n## Notas do agente\n',
+        'created: 2026-09-30\nupdated: 2026-09-30\n---\n## Checklist\n\n## Agent notes\n',
     );
     const board = JSON.parse(await readFile(path.join(boards, 'app', 'board.json'), 'utf8'));
     expect(board.nextId).toBe(3);
