@@ -6,7 +6,9 @@ that can read files or run a command) use the `vckb` CLI, the REST API, or simpl
 
 🇧🇷 [Leia em português](README.pt-BR.md)
 
-> **Status:** early. Core, CLI and REST API are working and tested; the web UI is in progress.
+> [!WARNING]
+> **🚧 Early development.** The backend (file format, store), the `vckb` CLI and the REST API are
+> working and tested. **The web UI is under construction.** Expect breaking changes before 1.0.
 
 <!-- TODO(ui): replace with a screenshot/GIF of the board once the web UI lands -->
 > 🖼️ _Screenshot / GIF of the board: coming with the web UI._
@@ -185,12 +187,13 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
 Other tools in the same space you may want to look at:
 
-- **[Vibe Kanban](https://github.com/BloopAI/vibe-kanban)**: according to its README, it helps
-  engineers plan and review work with coding agents, with kanban issues and coding agents running
-  in workspaces; it starts with `npx vibe-kanban`.
-- **[Backlog.md](https://github.com/MrLesk/Backlog.md)**: according to its README, a
-  Markdown-native task manager and Kanban visualizer for Git repositories that stores tasks as
-  `.md` files inside the repo, with a CLI, a web UI and AI-agent integration (CLI instructions or MCP).
+- **[Vibe Kanban](https://github.com/BloopAI/vibe-kanban)**: per its README, you plan with issues
+  on a kanban board and run coding agents (Claude Code, Gemini CLI, Codex and others) in
+  workspaces; started with `npx vibe-kanban`.
+- **[Backlog.md](https://github.com/MrLesk/Backlog.md)**: per its README, a Markdown-native task
+  manager and Kanban visualizer for any Git repository, where every task is a plain `.md` file in
+  the repo; it has a CLI, a local web board (`backlog browser`) and works with MCP- or
+  CLI-compatible AI assistants.
 
 VCKB's angle: a single boards directory for **many** projects, kept outside the projects' own
 repositories, plus a small copy-paste protocol that works with any agent.
