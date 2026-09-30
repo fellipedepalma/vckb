@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { VckbError } from './errors.js';
 import { atomicWrite, TEMP_FILE_RE, withLock } from './fs-utils.js';
@@ -56,6 +57,16 @@ export interface Task {
   progress: { done: number; total: number };
   /** File name inside tasks/ (never an absolute path). Unique, unlike `id` on a damaged board. */
   file: string;
+  /** Hash of the file's content (HTTP ETag without quotes): changes whenever the file changes. */
+  etag: string;
+}
+
+export interface WriteOptions {
+  /**
+   * Optimistic concurrency: the write only happens if the task file's current etag is in this list
+   * ("*" matches any existing file). Otherwise it fails with PRECONDITION_FAILED.
+   */
+  ifMatch?: string[];
 }
 
 export type WarningCode =
@@ -138,6 +149,7 @@ interface Entry {
   file: string;
   /** Fields defaulted in memory; writing the entry persists the defaults. */
   missing: string[];
+  etag: string;
 }
 
 interface Scan {
@@ -159,6 +171,17 @@ const byPriority = (a: TaskDoc, b: TaskDoc) => PRIORITY_RANK[a.priority] - PRIOR
 const idNumber = (id: string) => Number(id.slice(2));
 
 const invalid = (msg: string) => new VckbError('INVALID', msg);
+
+/** Content hash used as the task's ETag (128 bits of SHA-256, hex). */
+export function etagOf(content: string): string {
+  return createHash('sha256').update(content).digest('hex').slice(0, 32);
+}
+
+function checkIfMatch(entry: Entry, opts: WriteOptions): void {
+  const expected = opts.ifMatch;
+  if (expected === undefined || expected.includes('*') || expected.includes(entry.etag)) return;
+  throw new VckbError('PRECONDITION_FAILED', `Task ${entry.doc.id} changed on disk since it was read (${entry.file}). Reload it and try again.`);
+}
 
 function isErrno(err: unknown, code: string): boolean {
   return (err as NodeJS.ErrnoException)?.code === code;
@@ -247,7 +270,7 @@ function vColumns(v: unknown): string[] {
   return cols;
 }
 
-function toTask({ doc, file }: Entry): Task {
+function toTask({ doc, file, etag }: Entry): Task {
   const checklist = getChecklist(doc.body);
   return {
     id: doc.id,
@@ -263,6 +286,7 @@ function toTask({ doc, file }: Entry): Task {
     checklist,
     progress: { done: checklist.filter((i) => i.done).length, total: checklist.length },
     file,
+    etag,
   };
 }
 
@@ -400,8 +424,10 @@ export class BoardStore {
       if (fileId) maxId = Math.max(maxId, Number(fileId[1]));
       const full = safeJoin(dir, file);
       let parsed;
+      let raw: string;
       try {
-        parsed = parseTaskFile(await fs.readFile(full, 'utf8'));
+        raw = await fs.readFile(full, 'utf8');
+        parsed = parseTaskFile(raw);
       } catch (err) {
         warnings.push({ code: 'invalid_file', file, message: `${file}: ${(err as Error).message}` });
         continue;
@@ -455,7 +481,7 @@ export class BoardStore {
           message: `${file}: missing or invalid ${reported.join(', ')}; using defaults`,
         });
       }
-      const entry: Entry = { doc, file, missing };
+      const entry: Entry = { doc, file, missing, etag: etagOf(raw) };
       entries.push(entry);
       if (!id) withoutId.push(entry);
     }
@@ -537,8 +563,11 @@ export class BoardStore {
     return toTask(this.find(entries, normalizeTaskId(id), false));
   }
 
-  private async writeEntry(slug: string, entry: { doc: TaskDoc; file: string }): Promise<void> {
-    await atomicWrite(safeJoin(this.tasksDir(slug), entry.file), serializeTask(entry.doc));
+  /** Writes the task file and returns its new etag. */
+  private async writeEntry(slug: string, entry: { doc: TaskDoc; file: string }): Promise<string> {
+    const content = serializeTask(entry.doc);
+    await atomicWrite(safeJoin(this.tasksDir(slug), entry.file), content);
+    return etagOf(content);
   }
 
   /**
@@ -602,13 +631,13 @@ export class BoardStore {
       } else {
         await this.placeAtEnd(slug, entries, file, doc, status);
       }
-      const entry: Entry = { doc, file, missing: [] };
-      await this.writeEntry(slug, entry);
+      const entry: Entry = { doc, file, missing: [], etag: '' };
+      entry.etag = await this.writeEntry(slug, entry);
       return toTask(entry);
     });
   }
 
-  async updateTask(slug: string, id: string, patch: UpdateTaskInput): Promise<Task> {
+  async updateTask(slug: string, id: string, patch: UpdateTaskInput, opts: WriteOptions = {}): Promise<Task> {
     const taskId = normalizeTaskId(id);
     if (!patch || typeof patch !== 'object' || Object.values(patch).every((v) => v === undefined)) {
       throw invalid('nothing to update');
@@ -616,6 +645,7 @@ export class BoardStore {
     return withLock(this.projectDir(slug), async () => {
       const { board, entries } = await this.scan(slug);
       const entry = this.find(entries, taskId, true);
+      checkIfMatch(entry, opts);
       const doc: TaskDoc = { ...entry.doc };
 
       if (patch.title !== undefined) doc.title = vString(patch.title, 'title', LIMITS.title, { required: true });
@@ -641,8 +671,8 @@ export class BoardStore {
       }
 
       doc.updated = this.today();
-      const updated: Entry = { doc, file: entry.file, missing: [] };
-      await this.writeEntry(slug, updated);
+      const updated: Entry = { doc, file: entry.file, missing: [], etag: '' };
+      updated.etag = await this.writeEntry(slug, updated);
       return toTask(updated);
     });
   }
@@ -651,24 +681,27 @@ export class BoardStore {
     return this.updateTask(slug, id, { status, position });
   }
 
-  async addNote(slug: string, id: string, text: string): Promise<Task> {
+  async addNote(slug: string, id: string, text: string, opts: WriteOptions = {}): Promise<Task> {
     const note = vString(text, 'note', LIMITS.note, { required: true, multiline: true });
     const taskId = normalizeTaskId(id);
     return withLock(this.projectDir(slug), async () => {
       const { entries } = await this.scan(slug);
       const entry = this.find(entries, taskId, true);
+      checkIfMatch(entry, opts);
       const today = this.today();
-      const updated: Entry = { file: entry.file, missing: [], doc: { ...entry.doc, body: appendNote(entry.doc.body, note, today), updated: today } };
-      await this.writeEntry(slug, updated);
+      const doc = { ...entry.doc, body: appendNote(entry.doc.body, note, today), updated: today };
+      const updated: Entry = { file: entry.file, missing: [], doc, etag: '' };
+      updated.etag = await this.writeEntry(slug, updated);
       return toTask(updated);
     });
   }
 
-  async deleteTask(slug: string, id: string): Promise<void> {
+  async deleteTask(slug: string, id: string, opts: WriteOptions = {}): Promise<void> {
     const taskId = normalizeTaskId(id);
     await withLock(this.projectDir(slug), async () => {
       const { entries } = await this.scan(slug);
       const entry = this.find(entries, taskId, true);
+      checkIfMatch(entry, opts);
       await fs.rm(safeJoin(this.tasksDir(slug), entry.file));
     });
   }

@@ -88,6 +88,9 @@ Task files are also written by humans and agents directly, so reading must never
   Changing these shapes is a breaking change (note it in the changelog).
 - Writes through an ID shared by several files throw `CONFLICT` (HTTP 409); reads return the first
   file by name. `Task.file` is the unique key, not `id`.
+- `Task.etag` is the hash of the file content. Store writes take `{ ifMatch }` and throw
+  `PRECONDITION_FAILED` (HTTP 412) when the file changed since it was read. The UI must always send
+  `If-Match` on task writes and never retry a 412 blindly. Tests: `tests/concurrency.test.ts`.
 - ID allocation is `max(nextId, highest ID in tasks/ incl. file-name prefixes) + 1`; never reuse.
 - `vckb doctor` (`BoardStore.doctor`) is read-only without `--fix`; with it, it runs under the lock.
   Tests for all of this live in `tests/hand-edits.test.ts`.

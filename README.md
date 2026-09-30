@@ -126,10 +126,15 @@ All endpoints require `Authorization: Bearer $VCKB_TOKEN`, or the web UI's sessi
 `position` (0 = top) places the task inside its target column and renumbers the others.
 
 Errors are `{ "error": "message" }` with status 400 (validation), 401 (auth), 403 (CSRF check
-failed), 404 (not found), 409 (conflict), 413 (body too large), 421 (`Host` not allowed) or 429
+failed), 404 (not found), 409 (conflict), 412 (`If-Match` failed), 413 (body too large), 421 (`Host` not allowed) or 429
 (too many failed attempts; see `Retry-After`). **409** also means the task ID is used by more than one
 file: `PATCH`, `DELETE` and `notes` on that ID are refused until you run `vckb doctor <project> --fix`
 (reads still work and return the first file by name).
+
+**Optimistic concurrency.** Every task has an `etag` (a hash of its file) in listings, and task
+responses carry it in the `ETag` header. Send it back as `If-Match: "<etag>"` on `PATCH`, `DELETE`
+or `notes`: if the file changed on disk since you read it (an agent edited it, say), the answer is
+**412** and nothing is written. Without `If-Match` the write proceeds (CLI-style clients).
 
 `warnings` in `/summary` (and in `vckb list --json`) is a list of
 `{ code, message, file?, files?, id?, column?, fields? }`, with `code` one of `invalid_file`,

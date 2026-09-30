@@ -118,10 +118,15 @@ A tabela completa está no [README em inglês](README.md#rest-api). Resumo:
 - `GET /api/events`: Server-Sent Events (`change` com `{ "project": "<slug>" }`)
 
 Erros vêm como `{ "error": "mensagem" }` com status 400 (validação), 401 (autenticação), 403 (falha
-na checagem de CSRF), 404 (não encontrado), 409 (conflito), 413 (corpo grande demais), 421 (`Host`
+na checagem de CSRF), 404 (não encontrado), 409 (conflito), 412 (`If-Match` falhou), 413 (corpo grande demais), 421 (`Host`
 não permitido) ou 429 (tentativas demais; veja `Retry-After`). **409** também indica que o ID da tarefa
 é usado por mais de um arquivo: `PATCH`, `DELETE` e `notes` nesse ID são recusados até você rodar
 `vckb doctor <projeto> --fix` (a leitura continua funcionando e retorna o primeiro arquivo pelo nome).
+
+**Concorrência otimista.** Toda tarefa tem um `etag` (hash do arquivo) nas listagens, e as respostas
+de tarefa o trazem no header `ETag`. Devolva-o como `If-Match: "<etag>"` em `PATCH`, `DELETE` ou
+`notes`: se o arquivo mudou no disco desde a leitura (um agente o editou, por exemplo), a resposta é
+**412** e nada é gravado. Sem `If-Match`, a escrita segue normalmente (clientes tipo CLI).
 
 `warnings` no `/summary` (e no `vckb list --json`) é uma lista de
 `{ code, message, file?, files?, id?, column?, fields? }`, com `code` entre `invalid_file`,

@@ -1,4 +1,4 @@
-export type VckbErrorCode = 'INVALID' | 'NOT_FOUND' | 'CONFLICT';
+export type VckbErrorCode = 'INVALID' | 'NOT_FOUND' | 'CONFLICT' | 'PRECONDITION_FAILED';
 
 export class VckbError extends Error {
   constructor(

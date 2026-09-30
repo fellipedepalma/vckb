@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Optimistic concurrency: tasks have an `etag` (content hash) in listings and an `ETag` header on
+  task responses; `PATCH`, `DELETE` and `notes` honor `If-Match` and answer **412** when the file
+  changed on disk since it was read. Requests without `If-Match` behave as before.
 - Web UI authentication: `POST /api/session` exchanges `VCKB_TOKEN` for a `vckb_session` cookie
   (HttpOnly, SameSite=Strict, Path=/api, 7 days, Secure over HTTPS; HMAC keyed by HKDF of the
   token, so rotating the token revokes all sessions). `GET /api/session`, `POST /api/session/logout`.

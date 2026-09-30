@@ -6,7 +6,7 @@ import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { VckbError } from '../core/errors.js';
-import type { BoardStore, CreateTaskInput, UpdateTaskInput } from '../core/store.js';
+import type { BoardStore, CreateTaskInput, Task, UpdateTaskInput } from '../core/store.js';
 import {
   createSession,
   defaultAllowedHosts,
@@ -71,7 +71,23 @@ export function bearerMatches(header: string | undefined, token: string): boolea
   return m ? tokenMatches(m[1], token) : false;
 }
 
-const STATUS: Record<VckbError['code'], 400 | 404 | 409> = { INVALID: 400, NOT_FOUND: 404, CONFLICT: 409 };
+const STATUS: Record<VckbError['code'], 400 | 404 | 409 | 412> = { INVALID: 400, NOT_FOUND: 404, CONFLICT: 409, PRECONDITION_FAILED: 412 };
+
+/**
+ * Parses If-Match (RFC 9110): undefined when absent, ['*'] for any, else the strong entity tags.
+ * Weak tags (W/"...") never match with the strong comparison If-Match requires, so they're dropped:
+ * a header with only weak or malformed tags always fails the precondition.
+ */
+export function parseIfMatch(header: string | undefined): string[] | undefined {
+  if (header === undefined) return undefined;
+  if (header.trim() === '*') return ['*'];
+  return header
+    .split(',')
+    .map((t) => /^"([^"]*)"$/.exec(t.trim())?.[1])
+    .filter((t): t is string => t !== undefined);
+}
+
+const etagHeader = (etag: string) => `"${etag}"`;
 
 async function readJson(c: Context): Promise<Record<string, unknown>> {
   let data: unknown;
@@ -173,7 +189,8 @@ export function createApp(opts: AppOptions) {
       cors({
         origin: opts.corsOrigins,
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
-        allowHeaders: ['Authorization', 'Content-Type'],
+        allowHeaders: ['Authorization', 'Content-Type', 'If-Match', CSRF_HEADER],
+        exposeHeaders: ['ETag'],
         maxAge: 600,
       }),
     );
@@ -274,25 +291,34 @@ export function createApp(opts: AppOptions) {
   api.post('/projects/:slug/tasks', async (c) => {
     const body = await readJson(c);
     const task = await store.createTask(c.req.param('slug'), pick<CreateTaskInput>(body, [...TASK_FIELDS]));
+    c.header('ETag', etagHeader(task.etag));
     return c.json(task, 201);
   });
 
-  api.get('/projects/:slug/tasks/:id', async (c) => c.json(await store.getTask(c.req.param('slug'), c.req.param('id'))));
+  // Task reads send an ETag (content hash); PATCH, DELETE and notes honor If-Match (412 if the file
+  // changed on disk since it was read, e.g. edited by an agent while the UI had it open).
+  const withEtag = (c: Context, task: Task) => {
+    c.header('ETag', etagHeader(task.etag));
+    return c.json(task);
+  };
+  const ifMatch = (c: Context) => ({ ifMatch: parseIfMatch(c.req.header('if-match')) });
+
+  api.get('/projects/:slug/tasks/:id', async (c) => withEtag(c, await store.getTask(c.req.param('slug'), c.req.param('id'))));
 
   api.patch('/projects/:slug/tasks/:id', async (c) => {
     const body = await readJson(c);
     const patch = pick<UpdateTaskInput>(body, [...TASK_FIELDS, 'order']);
-    return c.json(await store.updateTask(c.req.param('slug'), c.req.param('id'), patch));
+    return withEtag(c, await store.updateTask(c.req.param('slug'), c.req.param('id'), patch, ifMatch(c)));
   });
 
   api.delete('/projects/:slug/tasks/:id', async (c) => {
-    await store.deleteTask(c.req.param('slug'), c.req.param('id'));
+    await store.deleteTask(c.req.param('slug'), c.req.param('id'), ifMatch(c));
     return c.body(null, 204);
   });
 
   api.post('/projects/:slug/tasks/:id/notes', async (c) => {
     const body = await readJson(c);
-    return c.json(await store.addNote(c.req.param('slug'), c.req.param('id'), body.text as string));
+    return withEtag(c, await store.addNote(c.req.param('slug'), c.req.param('id'), body.text as string, ifMatch(c)));
   });
 
   api.get('/projects/:slug/summary', async (c) => c.json(await store.summary(c.req.param('slug'))));
