@@ -7,7 +7,7 @@ describe('shipped example board', () => {
   it('boards/example parses cleanly with one task per column', async () => {
     const store = new BoardStore(path.join(PACKAGE_ROOT, 'boards'));
     const summary = await store.summary('example');
-    expect(summary.invalidFiles).toEqual([]);
+    expect(summary.warnings).toEqual([]);
     expect(summary.project).toEqual({ slug: 'example', name: 'Example' });
     expect(summary.columns.map((c) => c.count)).toEqual([1, 1, 1, 1, 1]);
     const tasks = await store.listTasks('example');

@@ -181,7 +181,7 @@ describe('hostile .md files (audit findings)', () => {
     const g = globalThis as { __pwned?: boolean };
     g.__pwned = false;
     await writeFile(path.join(boards, 'ok', 'tasks', 'T-001-x.md'), '---js\n{ id: "T-001", title: (globalThis.__pwned = true, "x") }\n---\n');
-    expect((await store.summary('ok')).invalidFiles).toEqual([{ file: 'T-001-x.md', error: 'frontmatter must be YAML' }]);
+    expect((await store.summary('ok')).warnings).toContainEqual({ code: 'invalid_file', file: 'T-001-x.md', message: 'T-001-x.md: frontmatter must be YAML' });
     expect(g.__pwned).toBe(false);
   });
 

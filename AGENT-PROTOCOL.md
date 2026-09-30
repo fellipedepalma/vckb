@@ -86,8 +86,9 @@ It reads `VCKB_BOARDS_DIR` from the environment or from VCKB's own `.env` (defau
 inside the VCKB install), so it finds the same boards no matter which project it is called from.
 `--dir <path>` overrides it for a single command.
 
-Commands: `vckb projects | list | show | add | move | done | note | next` (add `--json` for
-structured output; `vckb --help` for details).
+Commands: `vckb projects | list | show | add | move | done | note | next | doctor` (add `--json`
+for structured output; `vckb --help` for details). If `vckb list` prints warnings after you edited
+a file by hand, run `vckb doctor {{PROJECT}}` and fix what it reports.
 
 ---
 

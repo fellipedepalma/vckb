@@ -86,11 +86,15 @@ vckb move <project> T-001 doing
 vckb done <project> T-001
 vckb note <project> T-001 "text"        # appends to "## Agent notes"
 vckb next <project>                     # highest-priority task in "todo"
+vckb doctor <project> [--fix]           # find (and repair) problems left by hand edits
 
 Global: --dir <path>   --json   -h/--help
 ```
 
 `vckb add` creates tasks in the first column (`backlog` by default).
+
+`vckb list --json` returns `{ "tasks": [...], "warnings": [...] }`; in text mode the warnings go to
+stderr. See [Hand-edited files](#hand-edited-files).
 
 ## REST API
 
@@ -107,7 +111,7 @@ All endpoints require `Authorization: Bearer $VCKB_TOKEN`. JSON in, JSON out.
 | PATCH | `/api/projects/:slug/tasks/:id` | any of `title, status, priority, labels, body, description, checklist, position, order` |
 | DELETE | `/api/projects/:slug/tasks/:id` | 204 |
 | POST | `/api/projects/:slug/tasks/:id/notes` | `{ text }`, appends an agent note |
-| GET | `/api/projects/:slug/summary` | count per column + next `todo` tasks by priority |
+| GET | `/api/projects/:slug/summary` | count per column + next `todo` tasks by priority + `warnings` |
 | GET | `/api/events` | Server-Sent Events: `change` with `{ "project": "<slug>" }` |
 
 `position` (0 = top) places the task inside its target column and renumbers the others.
@@ -147,12 +151,32 @@ Free-form Markdown description.
 (agents record decisions and what was done here)
 ```
 
-- IDs are sequential per project (`nextId`), never reused, allocated under a cross-process lock.
+- IDs are sequential per project, never reused, allocated under a cross-process lock. The next ID
+  is `max(nextId, highest ID found in tasks/) + 1`, so a `board.json` that fell behind heals itself.
 - All writes are atomic (temp file + rename). Only the frontmatter and the touched section change;
   the rest of the Markdown body is preserved byte for byte, along with unknown frontmatter fields.
 - Frontmatter must be YAML. Other gray-matter languages (e.g. `---js`) are rejected on purpose.
 - The section headings `## Checklist` and `## Agent notes` are part of the format. `## Notas do agente`
   (Portuguese) is accepted as an alias for agent notes; an existing heading is always preserved.
+
+### Hand-edited files
+
+Agents and humans may create or edit task files directly. VCKB never refuses to list a board
+because of that; it applies safe defaults and reports each problem as a warning:
+
+| Problem | What VCKB does |
+|---|---|
+| Missing `id` | Uses the `T-NNN` prefix of the file name; otherwise a provisional ID (the next free one), saved on the next write |
+| Missing `title`, `priority`, `order`, `created`, `updated` | Title from the file name, `medium`, end of the column, file modification date |
+| `status` not among the columns (or missing) | Shown in the first column |
+| Two files with the same `id` | Both are listed; writes through that ID are refused until it is fixed |
+| Repeated `order` in a column | Column renumbered (10, 20, 30…) the next time the server or CLI rewrites it |
+| Unparsable file (bad YAML, no frontmatter) | Skipped and reported; fix it by hand |
+
+`vckb doctor <project>` lists these problems and what would change, without touching anything.
+`vckb doctor <project> --fix` persists the defaults, gives duplicated IDs a new ID (the file whose
+name matches the ID, or else the oldest, keeps it; the other is renamed), renumbers the affected
+columns and moves `nextId` past the highest ID.
 
 ## Agent protocol
 

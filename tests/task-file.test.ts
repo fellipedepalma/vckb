@@ -6,6 +6,7 @@ import {
   kebab,
   newTaskBody,
   parseTask,
+  parseTaskFile,
   serializeTask,
   setChecklist,
   setDescription,
@@ -71,11 +72,16 @@ describe('frontmatter parse/serialize', () => {
     expect(parseTask(out).title).toBe('API: route #1 [beta]');
   });
 
-  it('tolerates missing fields but requires id and title', () => {
+  it('tolerates missing fields and reports which ones were defaulted', () => {
     const t = parseTask('---\nid: T-9\ntitle: X\n---\nbody\n');
     expect(t).toMatchObject({ priority: 'medium', labels: [], order: 0, status: '' });
-    expect(() => parseTask('---\ntitle: X\n---\n')).toThrow(/id/);
-    expect(() => parseTask('---\nid: T-1\n---\n')).toThrow(/title/);
+    expect(parseTaskFile('---\ntitle: X\npriority: urgent\n---\n').missing).toEqual(['id', 'status', 'priority', 'order', 'created', 'updated']);
+    expect(parseTaskFile('---\nid: T-1\n---\n').missing).toContain('title');
+    expect(parseTaskFile('\uFEFF---\nid: T-1\ntitle: BOM\n---\n').doc.title).toBe('BOM');
+  });
+
+  it('still rejects files without frontmatter', () => {
+    expect(() => parseTask('just text')).toThrow(/no frontmatter/);
   });
 });
 

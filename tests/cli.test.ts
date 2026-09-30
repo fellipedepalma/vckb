@@ -36,7 +36,7 @@ describe('CLI', () => {
     expect(raw).toContain(`## Agent notes\n\n- ${store.today()}: picked GitHub Actions\n`);
 
     const json = await cli(boards, 'list', 'app', '--json');
-    expect(JSON.parse(json.out)).toHaveLength(2);
+    expect(JSON.parse(json.out)).toMatchObject({ tasks: [{ id: 'T-001' }, { id: 'T-002' }], warnings: [] });
   });
 
   it('errors go to stderr with a non-zero exit code', async () => {

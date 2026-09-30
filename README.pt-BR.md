@@ -87,11 +87,15 @@ vckb move <projeto> T-001 doing
 vckb done <projeto> T-001
 vckb note <projeto> T-001 "texto"       # acrescenta em "## Agent notes"
 vckb next <projeto>                     # tarefa de maior prioridade em "todo"
+vckb doctor <projeto> [--fix]           # encontra (e corrige) problemas de edição à mão
 
 Globais: --dir <caminho>   --json   -h/--help
 ```
 
 O `vckb add` cria na primeira coluna (`backlog` por padrão).
+
+`vckb list --json` retorna `{ "tasks": [...], "warnings": [...] }`; no modo texto os avisos vão para
+o stderr. Veja [Arquivos editados à mão](#arquivos-editados-à-mão).
 
 ## API REST
 
@@ -102,7 +106,7 @@ A tabela completa está no [README em inglês](README.md#rest-api). Resumo:
 - `GET/POST /api/projects/:slug/tasks` (filtros `?status=&label=`)
 - `GET/PATCH/DELETE /api/projects/:slug/tasks/:id` (PATCH aceita `title, status, priority, labels, body, description, checklist, position, order`)
 - `POST /api/projects/:slug/tasks/:id/notes` com `{ text }`
-- `GET /api/projects/:slug/summary`: contagem por coluna e próximas tarefas de `todo` por prioridade
+- `GET /api/projects/:slug/summary`: contagem por coluna, próximas tarefas de `todo` por prioridade e `warnings`
 - `GET /api/events`: Server-Sent Events (`change` com `{ "project": "<slug>" }`)
 
 ## Formato dos arquivos
@@ -136,12 +140,32 @@ Descrição livre em Markdown.
 (agentes anotam decisões e o que foi feito aqui)
 ```
 
-- IDs sequenciais por projeto (`nextId`), nunca reutilizados, alocados com lock entre processos.
+- IDs sequenciais por projeto, nunca reutilizados, alocados com lock entre processos. O próximo ID é
+  `max(nextId, maior ID encontrado em tasks/) + 1`, então um `board.json` defasado se corrige sozinho.
 - Toda escrita é atômica (arquivo temporário + rename). Só o frontmatter e a seção alterada mudam;
   o resto do corpo é preservado byte a byte, assim como campos desconhecidos do frontmatter.
 - O frontmatter precisa ser YAML. Outras linguagens do gray-matter (ex.: `---js`) são rejeitadas de propósito.
 - Os títulos `## Checklist` e `## Agent notes` fazem parte do formato. `## Notas do agente` também é aceito
   para as notas; o título que a tarefa já tiver é sempre preservado.
+
+### Arquivos editados à mão
+
+Agentes e pessoas podem criar ou editar os arquivos diretamente. O VCKB nunca deixa de listar o board
+por causa disso: aplica valores padrão seguros e reporta cada problema como aviso (`warnings`):
+
+| Problema | O que o VCKB faz |
+|---|---|
+| Sem `id` | Usa o prefixo `T-NNN` do nome do arquivo; senão, um ID provisório (o próximo livre), gravado na próxima escrita |
+| Sem `title`, `priority`, `order`, `created`, `updated` | Título pelo nome do arquivo, `medium`, fim da coluna, data de modificação do arquivo |
+| `status` fora das colunas (ou ausente) | Exibida na primeira coluna |
+| Dois arquivos com o mesmo `id` | Os dois são listados; escritas por esse ID são recusadas até a correção |
+| `order` repetida na coluna | Coluna renumerada (10, 20, 30…) na próxima vez que o servidor ou o CLI a reescrever |
+| Arquivo ilegível (YAML inválido, sem frontmatter) | Ignorado e reportado; corrija à mão |
+
+`vckb doctor <projeto>` lista esses problemas e o que mudaria, sem alterar nada.
+`vckb doctor <projeto> --fix` grava os valores padrão, dá um ID novo aos duplicados (fica com o ID o
+arquivo cujo nome bate com ele, ou então o mais antigo; o outro é renomeado), renumera as colunas
+afetadas e ajusta o `nextId` para depois do maior ID.
 
 ## Protocolo para agentes
 

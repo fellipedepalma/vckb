@@ -63,37 +63,66 @@ const MATTER_OPTIONS = {
   engines: { javascript: refuseEngine, js: refuseEngine, coffee: refuseEngine },
 };
 
+/** A parsed file plus the known fields that were absent or unusable (defaults were applied). */
+export interface ParsedTask {
+  doc: TaskDoc;
+  missing: string[];
+}
+
 /**
- * Reads a task .md file. Tolerant of hand-edited files (missing fields get defaults),
- * but `id` and `title` are required.
+ * Reads a task .md file. Tolerant of hand-edited files: absent or invalid fields get
+ * defaults and are listed in `missing` (id/title fall back to ''; the store fills them in).
+ * Throws only when the file has no frontmatter block or the frontmatter is not YAML.
  */
-export function parseTask(raw: string): TaskDoc {
+export function parseTaskFile(input: string): ParsedTask {
+  const raw = input.replace(/^\uFEFF/, ''); // BOM left by some Windows editors
   const lang = /^---([^\r\n]*)/.exec(raw)?.[1].trim().toLowerCase();
+  if (lang === undefined) throw new Error('file has no frontmatter (it must start with "---")');
   if (lang && lang !== 'yaml' && lang !== 'yml') throw new Error('frontmatter must be YAML');
   const parsed = matter(raw, MATTER_OPTIONS as Parameters<typeof matter>[1]);
   const data = (parsed.data ?? {}) as Record<string, unknown>;
-  if (typeof data.id !== 'string' || !data.id.trim()) throw new Error('frontmatter is missing "id"');
-  if (data.title === undefined || data.title === null || String(data.title).trim() === '') {
-    throw new Error('frontmatter is missing "title"');
-  }
+  const missing: string[] = [];
+  const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');
+
+  const id = typeof data.id === 'string' ? data.id.trim() : '';
+  if (!id) missing.push('id');
+  const title = str(data.title);
+  if (!title) missing.push('title');
+  const status = str(data.status);
+  if (!status) missing.push('status');
   const priority = PRIORITIES.includes(data.priority as Priority) ? (data.priority as Priority) : 'medium';
-  const order = Number(data.order);
+  if (priority !== data.priority) missing.push('priority');
+  const order = data.order === null || data.order === undefined || data.order === '' ? NaN : Number(data.order);
+  if (!Number.isFinite(order)) missing.push('order');
+  const created = toDateString(data.created);
+  if (!created) missing.push('created');
+  const updated = toDateString(data.updated);
+  if (!updated) missing.push('updated');
+
   const extra: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
     if (!KNOWN_KEYS.includes(k) && k !== '__proto__' && k !== 'constructor' && k !== 'prototype') extra[k] = v;
   }
   return {
-    id: data.id.trim(),
-    title: String(data.title).trim(),
-    status: String(data.status ?? '').trim(),
-    priority,
-    labels: toLabels(data.labels),
-    order: Number.isFinite(order) ? order : 0,
-    created: toDateString(data.created),
-    updated: toDateString(data.updated),
-    extra,
-    body: parsed.content,
+    doc: {
+      id,
+      title,
+      status,
+      priority,
+      labels: toLabels(data.labels),
+      order: Number.isFinite(order) ? order : 0,
+      created,
+      updated,
+      extra,
+      body: parsed.content,
+    },
+    missing,
   };
+}
+
+/** Same as `parseTaskFile`, returning only the document. */
+export function parseTask(raw: string): TaskDoc {
+  return parseTaskFile(raw).doc;
 }
 
 function scalar(v: unknown): string {

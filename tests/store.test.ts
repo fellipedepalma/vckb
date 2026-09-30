@@ -165,6 +165,6 @@ describe('edit, notes, delete, summary', () => {
     await store.createTask('app', { title: 'ok' });
     await writeFile(path.join(boards, 'app', 'tasks', 'broken.md'), 'no frontmatter');
     expect(ids(await store.listTasks('app'))).toEqual(['T-001']);
-    expect((await store.summary('app')).invalidFiles).toEqual([{ file: 'broken.md', error: 'frontmatter is missing "id"' }]);
+    expect((await store.summary('app')).warnings).toMatchObject([{ code: 'invalid_file', file: 'broken.md' }]);
   });
 });
