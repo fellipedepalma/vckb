@@ -12,9 +12,14 @@ export const COLUMN_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 /** Raiz do pacote (funciona tanto em src/ via tsx quanto em dist/ compilado). */
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-export function resolveBoardsDir(override?: string): string {
-  const dir = override ?? process.env.VCKB_BOARDS_DIR ?? path.join(PACKAGE_ROOT, 'boards');
-  return path.resolve(dir);
+/**
+ * Diretório de dados. Ordem: `--dir` (relativo ao cwd) > `VCKB_BOARDS_DIR` > `./boards`.
+ * Um VCKB_BOARDS_DIR relativo é resolvido a partir da instalação do VCKB (não do cwd),
+ * para o CLI achar os mesmos boards de qualquer projeto em que for chamado.
+ */
+export function resolveBoardsDir(override?: string, env: NodeJS.ProcessEnv = process.env): string {
+  if (override) return path.resolve(process.cwd(), override);
+  return path.resolve(PACKAGE_ROOT, env.VCKB_BOARDS_DIR || './boards');
 }
 
 /** Nomes de dispositivo do Windows: não podem virar pasta (con, nul, com1...). */

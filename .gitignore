@@ -1,6 +1,17 @@
 node_modules/
 dist/
+*.log
+
+# Secrets
 .env
+.env.*
+!.env.example
+
+# Data: real boards live outside this repo (see VCKB_BOARDS_DIR).
+# Only the example board is versioned.
+boards/*
+!boards/exemplo/
+
+# Atomic-write temp files and locks
 *.tmp-*
 .vckb.lock/
-*.log

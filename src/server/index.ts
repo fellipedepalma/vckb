@@ -1,11 +1,13 @@
-import 'dotenv/config';
 import { EventEmitter } from 'node:events';
 import { promises as fs } from 'node:fs';
 import { serve } from '@hono/node-server';
+import { loadEnv } from '../core/env.js';
 import { resolveBoardsDir } from '../core/paths.js';
 import { BoardStore } from '../core/store.js';
 import { createApp } from './app.js';
 import { watchBoards } from './watcher.js';
+
+loadEnv();
 
 const token = process.env.VCKB_TOKEN ?? '';
 if (token.length < 16) {

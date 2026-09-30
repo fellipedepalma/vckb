@@ -55,7 +55,8 @@ src/server/   Hono app (rotas, auth, SSE) + watcher
 src/cli/      CLI vckb
 web/          UI React
 tests/        vitest (core, API, CLI, segurança)
-boards/       dados (um diretório por projeto)
+boards/       dados (um diretório por projeto). Só boards/exemplo/ é versionado; os
+              boards reais ficam fora do repositório (VCKB_BOARDS_DIR)
 ```
 
 ## Convenções de código

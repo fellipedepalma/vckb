@@ -1,0 +1,8 @@
+node_modules
+dist
+boards
+.git
+.github
+.env
+.env.*
+*.log
