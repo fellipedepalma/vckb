@@ -153,6 +153,9 @@ Free-form Markdown description.
 
 - IDs are sequential per project, never reused, allocated under a cross-process lock. The next ID
   is `max(nextId, highest ID found in tasks/) + 1`, so a `board.json` that fell behind heals itself.
+- The lock is a `.vckb.lock/` directory in the project. If a process dies holding it, the lock is
+  recovered immediately when its PID is gone (same machine), or after 10 s without a heartbeat
+  (e.g. a process in a container sharing the volume). Delete it by hand only if nothing is running.
 - All writes are atomic (temp file + rename). Only the frontmatter and the touched section change;
   the rest of the Markdown body is preserved byte for byte, along with unknown frontmatter fields.
 - Frontmatter must be YAML. Other gray-matter languages (e.g. `---js`) are rejected on purpose.

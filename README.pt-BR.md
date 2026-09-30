@@ -142,6 +142,9 @@ Descrição livre em Markdown.
 
 - IDs sequenciais por projeto, nunca reutilizados, alocados com lock entre processos. O próximo ID é
   `max(nextId, maior ID encontrado em tasks/) + 1`, então um `board.json` defasado se corrige sozinho.
+- O lock é um diretório `.vckb.lock/` no projeto. Se um processo morre segurando o lock, ele é
+  recuperado na hora quando o PID não existe mais (mesma máquina), ou após 10 s sem heartbeat
+  (ex.: um processo num container que compartilha o volume). Só apague à mão se nada estiver rodando.
 - Toda escrita é atômica (arquivo temporário + rename). Só o frontmatter e a seção alterada mudam;
   o resto do corpo é preservado byte a byte, assim como campos desconhecidos do frontmatter.
 - O frontmatter precisa ser YAML. Outras linguagens do gray-matter (ex.: `---js`) são rejeitadas de propósito.
