@@ -1,0 +1,46 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project will use
+[Semantic Versioning](https://semver.org/) from 1.0 on. Until then, minor versions may break things.
+
+## [Unreleased]
+
+### Added
+
+- `vckb doctor <project> [--fix] [--json]`: lists problems left by hand edits (duplicate IDs,
+  repeated or missing `order`, incomplete frontmatter, status outside the columns, `nextId` behind
+  the files, unparsable files). Read-only without `--fix`; with it, persists the defaults, gives
+  duplicated IDs a new ID (renaming the file), renumbers the affected columns and fixes `nextId`.
+- `warnings` in `GET /api/projects/:slug/summary` and in `vckb list --json`: a list of
+  `{ code, message, file?, files?, id?, column?, fields? }`.
+- Docker: publish IP configurable with `VCKB_BIND_IP` (default `127.0.0.1`) and host port with
+  `VCKB_HOST_PORT`; container user configurable with `VCKB_UID`/`VCKB_GID` (default 1000); read-only
+  root filesystem, no Linux capabilities, `no-new-privileges`.
+- CI workflow `docker.yml`: hadolint, image build, container smoke test (`scripts/smoke.sh`).
+- The server warns when `VCKB_HOST` is not a loopback address outside a container, and refuses an
+  invalid `VCKB_PORT`.
+
+### Changed
+
+- **Breaking:** `vckb list --json` returns `{ "tasks": [...], "warnings": [...] }` instead of a bare
+  array. In text mode, warnings are printed to stderr.
+- **Breaking:** `invalidFiles` in the summary was replaced by `warnings` (unparsable files have
+  `code: "invalid_file"`).
+- Hand-edited task files no longer disappear from listings: missing `id` comes from the file name
+  (or a provisional ID), missing `title` from the file name, missing `order` puts the task at the
+  end of its column, missing dates use the file's modification date, and a status outside the
+  columns shows the task in the first column. Files starting with a UTF-8 BOM are accepted.
+- Two files with the same ID are both listed; writes through that ID answer **409 Conflict**
+  (CLI exit code 1) until `vckb doctor --fix` runs.
+- A column with repeated or missing `order` values is renumbered (10, 20, 30…) whenever the server
+  or the CLI rewrites it.
+- ID allocation is `max(nextId, highest ID found in tasks/) + 1`, so a `board.json` that fell behind
+  never causes an ID to be reused.
+
+### Fixed
+
+- Stale cross-process locks: a lock left by a dead process is recovered at once (dead PID on the
+  same host) or after 10 s without a heartbeat. Breaking a stale lock is serialized, so two
+  processes can no longer end up holding the lock at the same time; the default wait (15 s) now
+  outlasts the stale age.

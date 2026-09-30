@@ -75,6 +75,22 @@ boards/       data (one directory per project). Only boards/example/ is versione
   (`NOTES_HEADINGS` in `src/core/task-file.ts`).
 - Every bug fix gets a regression test. Security findings go in `tests/security.test.ts`.
 - Style: 2 spaces, single quotes, semicolons, no `any` (except in tests).
+- Update `CHANGELOG.md` (section `Unreleased`) in the same commit as any user-visible change.
+
+## Task files edited by hand (contract)
+
+Task files are also written by humans and agents directly, so reading must never fail on them:
+
+- `BoardStore.scan` applies safe defaults and reports every problem as a `BoardWarning`
+  (`invalid_file`, `incomplete_frontmatter`, `provisional_id`, `duplicate_id`, `duplicate_order`,
+  `unknown_status`, `next_id_behind`). Add a new code there rather than throwing.
+- Output contract: `vckb list --json` is `{ tasks, warnings }`; `/api/.../summary` has `warnings`.
+  Changing these shapes is a breaking change (note it in the changelog).
+- Writes through an ID shared by several files throw `CONFLICT` (HTTP 409); reads return the first
+  file by name. `Task.file` is the unique key, not `id`.
+- ID allocation is `max(nextId, highest ID in tasks/ incl. file-name prefixes) + 1`; never reuse.
+- `vckb doctor` (`BoardStore.doctor`) is read-only without `--fix`; with it, it runs under the lock.
+  Tests for all of this live in `tests/hand-edits.test.ts`.
 
 ## Security
 

@@ -114,6 +114,16 @@ A tabela completa está no [README em inglês](README.md#rest-api). Resumo:
 - `GET /api/projects/:slug/summary`: contagem por coluna, próximas tarefas de `todo` por prioridade e `warnings`
 - `GET /api/events`: Server-Sent Events (`change` com `{ "project": "<slug>" }`)
 
+Erros vêm como `{ "error": "mensagem" }` com status 400 (validação), 401 (autenticação), 404 (não
+encontrado), 409 (conflito) ou 413 (corpo grande demais). **409** também indica que o ID da tarefa
+é usado por mais de um arquivo: `PATCH`, `DELETE` e `notes` nesse ID são recusados até você rodar
+`vckb doctor <projeto> --fix` (a leitura continua funcionando e retorna o primeiro arquivo pelo nome).
+
+`warnings` no `/summary` (e no `vckb list --json`) é uma lista de
+`{ code, message, file?, files?, id?, column?, fields? }`, com `code` entre `invalid_file`,
+`incomplete_frontmatter`, `provisional_id`, `duplicate_id`, `duplicate_order`, `unknown_status` e
+`next_id_behind`. Lista vazia significa board sem problemas.
+
 ## Formato dos arquivos
 
 ```
@@ -229,6 +239,7 @@ npm run build
 ```
 
 Veja o [CONTRIBUTING.md](CONTRIBUTING.md) e o [AGENTS.md](AGENTS.md) (regras para agentes de IA que trabalham neste repositório).
+As mudanças estão no [CHANGELOG.md](CHANGELOG.md) (em inglês).
 
 ## Licença
 

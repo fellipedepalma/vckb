@@ -121,6 +121,16 @@ All endpoints require `Authorization: Bearer $VCKB_TOKEN`. JSON in, JSON out.
 
 `position` (0 = top) places the task inside its target column and renumbers the others.
 
+Errors are `{ "error": "message" }` with status 400 (validation), 401 (auth), 404 (not found),
+409 (conflict) or 413 (body too large). **409** also means the task ID is used by more than one
+file: `PATCH`, `DELETE` and `notes` on that ID are refused until you run `vckb doctor <project> --fix`
+(reads still work and return the first file by name).
+
+`warnings` in `/summary` (and in `vckb list --json`) is a list of
+`{ code, message, file?, files?, id?, column?, fields? }`, with `code` one of `invalid_file`,
+`incomplete_frontmatter`, `provisional_id`, `duplicate_id`, `duplicate_order`, `unknown_status`,
+`next_id_behind`. An empty list means the board is clean.
+
 ```bash
 curl -s -H "Authorization: Bearer $VCKB_TOKEN" http://127.0.0.1:8787/api/projects/example/summary
 ```
@@ -240,6 +250,7 @@ npm run build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) (rules for AI agents working on this repo).
+Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

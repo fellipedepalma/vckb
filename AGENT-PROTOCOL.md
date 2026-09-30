@@ -75,6 +75,10 @@ Rules for manual edits:
   increment `nextId` in the same step. Prefer the CLI, which does this with a lock and atomic writes.
 - Frontmatter is always YAML (`---`). Never use `---js` or any other format.
 - Don't delete tasks; the user decides what leaves the board.
+- After editing by hand, run `vckb doctor {{PROJECT}}` (read-only). Fix what it reports in the files
+  you touched; `vckb doctor {{PROJECT}} --fix` repairs it automatically (it may give a duplicated
+  task a new ID and rename its file; tell the user if it did).
+- A `409` error / "used by several files" means two files share an ID: run the doctor, don't guess.
 ````
 
 ---
@@ -87,8 +91,14 @@ inside the VCKB install), so it finds the same boards no matter which project it
 `--dir <path>` overrides it for a single command.
 
 Commands: `vckb projects | list | show | add | move | done | note | next | doctor` (add `--json`
-for structured output; `vckb --help` for details). If `vckb list` prints warnings after you edited
-a file by hand, run `vckb doctor {{PROJECT}}` and fix what it reports.
+for structured output; `vckb --help` for details).
+
+- `vckb list <project> --json` returns `{ "tasks": [...], "warnings": [...] }` (not a bare array).
+  In text mode, warnings go to stderr so they don't mix with the listing.
+- `vckb doctor <project> [--fix] [--json]` reports problems left by hand edits (duplicate IDs,
+  repeated orders, incomplete frontmatter, unknown status, `nextId` behind); `--fix` repairs them.
+- A write through an ID used by more than one file fails (exit code 1 in the CLI, HTTP 409 in the
+  API) until the doctor fixes it.
 
 ---
 
@@ -159,4 +169,8 @@ Descrição livre em Markdown.
   Prefira o CLI, que faz isso com lock e escrita atômica.
 - Frontmatter sempre YAML (`---`). Nunca use `---js`.
 - Não apague tarefas; o usuário decide o que sai do board.
+- Depois de editar à mão, rode `vckb doctor {{PROJETO}}` (só leitura). Corrija o que ele apontar nos
+  arquivos que você mexeu; `vckb doctor {{PROJETO}} --fix` corrige automaticamente (pode dar ID novo
+  a uma tarefa duplicada e renomear o arquivo; avise o usuário se isso acontecer).
+- Erro `409` / "used by several files" significa dois arquivos com o mesmo ID: rode o doctor, não chute.
 ````
