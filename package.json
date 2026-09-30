@@ -1,0 +1,41 @@
+{
+  "name": "vckb",
+  "version": "0.1.0",
+  "description": "Vibe Coding Kanban: kanban minimalista em arquivos Markdown para humanos e agentes de IA.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "bin": {
+    "vckb": "bin/vckb.js",
+    "quadro": "bin/vckb.js"
+  },
+  "scripts": {
+    "dev:server": "tsx watch src/server/index.ts",
+    "start": "node dist/server/index.js",
+    "build:server": "tsc -p tsconfig.build.json",
+    "build": "npm run build:server",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "audit": "npm audit --omit=dev",
+    "vckb": "node bin/vckb.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.3",
+    "chokidar": "^5.0.0",
+    "dotenv": "^18.0.4",
+    "gray-matter": "^4.0.3",
+    "hono": "^4.13.12",
+    "js-yaml": "^5.4.2",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

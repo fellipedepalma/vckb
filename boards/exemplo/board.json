@@ -1,0 +1,6 @@
+{
+  "name": "Exemplo",
+  "description": "Projeto de demonstração do VCKB: um app de lista de compras.",
+  "columns": ["backlog", "todo", "doing", "review", "done"],
+  "nextId": 6
+}
