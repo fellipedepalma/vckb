@@ -16,7 +16,9 @@ All notable changes to this project are documented here. The format follows
 - `Host` allow-list against DNS rebinding (loopback names, the bind address and
   `VCKB_ALLOWED_HOSTS`); other hosts get **421**.
 - Per-client exponential backoff for failed logins and failed Bearer tokens (**429** with
-  `Retry-After`). `VCKB_TRUST_PROXY=true` makes X-Forwarded-Proto/For count.
+  `Retry-After`). `VCKB_TRUST_PROXY=true` makes X-Forwarded-Proto/For count; the client address is
+  then the rightmost X-Forwarded-For entry (the trusted hop), so forged entries are ignored.
+  Without it, everyone behind a proxy shares one rate-limit bucket (documented in the threat model).
 - Security headers on every response: strict CSP, `nosniff`, `Referrer-Policy: no-referrer`;
   `Cache-Control: no-store` on the API.
 - `vckb doctor <project> [--fix] [--json]`: lists problems left by hand edits (duplicate IDs,

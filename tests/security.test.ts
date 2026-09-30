@@ -463,6 +463,26 @@ describe('rate limiting', () => {
     expect((await login(TOKEN, from('10.0.0.2'))).status).toBe(200);
   });
 
+  it('default (no trustProxy): X-Forwarded-For is ignored, so clients behind a proxy share one bucket', async () => {
+    const { login } = await sessionSetup({ rateLimit: { freeAttempts: 0 } });
+    const from = (ip: string) => ({ ...UI, 'X-Forwarded-For': ip });
+    expect((await login('wrong', from('10.0.0.1'))).status).toBe(401);
+    // A different forwarded address does not escape the block: only the socket address counts.
+    expect((await login(TOKEN, from('10.0.0.2'))).status).toBe(429);
+    expect((await login(TOKEN, UI)).status).toBe(429);
+  });
+
+  it('trustProxy: only the hop appended by the trusted proxy (rightmost) counts; forged entries are ignored', async () => {
+    const { login } = await sessionSetup({ trustProxy: true, rateLimit: { freeAttempts: 0 } });
+    const xff = (value: string) => ({ ...UI, 'X-Forwarded-For': value });
+    expect((await login('wrong', xff('1.1.1.1, 10.0.0.1'))).status).toBe(401);
+    // Same real client (10.0.0.1) forging a different leftmost entry: still blocked.
+    expect((await login(TOKEN, xff('2.2.2.2, 10.0.0.1'))).status).toBe(429);
+    expect((await login(TOKEN, xff('10.0.0.2, 10.0.0.1'))).status).toBe(429);
+    // Another real client (10.0.0.2) is not affected, even when it forges 10.0.0.1 on the left.
+    expect((await login(TOKEN, xff('10.0.0.1, 10.0.0.2'))).status).toBe(200);
+  });
+
   it('failed Bearer tokens are rate limited too', async () => {
     const { app } = await sessionSetup({ rateLimit: { freeAttempts: 3 } });
     const call = (token: string) => app.request('/api/projects', { headers: { Authorization: `Bearer ${token}` } });

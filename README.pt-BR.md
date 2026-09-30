@@ -241,6 +241,7 @@ O VCKB é uma **ferramenta local, de um único usuário**. Trate-o como um servi
 | DNS rebinding (evil.example resolvendo para 127.0.0.1) | Lista de hosts → 421 | |
 | XSS na UI (ex.: pelo Markdown de uma tarefa) | Sem HTML cru, links `javascript:`/`data:` bloqueados, CSP restritiva; o token não fica acessível ao JS | Com a página aberta, um script injetado age como você |
 | Adivinhar o token | Token longo e aleatório, comparação em tempo constante, backoff por cliente | Todos os clientes locais compartilham um endereço (127.0.0.1) |
+| Clientes atrás de proxy reverso bloqueando uns aos outros | Padrão: vale o endereço do socket, então todos atrás do proxy dividem o mesmo contador (seguro, mas um atacante pode bloquear os outros). Com `VCKB_TRUST_PROXY=true`, o cliente é a entrada **mais à direita** do `X-Forwarded-For`, a que o seu proxy acrescentou; entradas forjadas pelo cliente mais à esquerda são ignoradas | Só um hop confiável é suportado. Nunca ative sem um proxy na frente: qualquer um escolheria o próprio contador |
 | Escuta na rede | Loopback por padrão; Tailscale/WireGuard ou HTTPS para acesso remoto | HTTP puro numa LAN expõe o token e o cookie |
 | Cookie roubado | Expira em 7 dias; troque o `VCKB_TOKEN` para revogar todas as sessões | O logout apaga o cookie do navegador, mas não revoga uma cópia |
 | Processo malicioso na sua máquina | Fora do escopo: ele lê o diretório de boards e o `.env` diretamente | |
