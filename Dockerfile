@@ -5,6 +5,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
+# The web UI is built here (Vite, devDependencies) and served by the server from dist/web.
+COPY web ./web
 RUN npm run build && npm prune --omit=dev
 
 FROM node:22-alpine

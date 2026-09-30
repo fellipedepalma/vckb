@@ -63,6 +63,21 @@ if [ -n "${EXPECT_OWNER:-}" ]; then
   ok "task file owned by $owner"
 fi
 
+# Web UI: the app shell on the same origin, with the CSP.
+headers=$(mktemp)
+page=$(curl -sS -D "$headers" "$BASE_URL/") || fail "GET / failed"
+grep -qi '^HTTP/[0-9.]* 200' "$headers" || fail "GET /: expected 200, got $(head -n 1 "$headers")"
+grep -qi '^content-type: text/html' "$headers" || fail "GET /: not HTML"
+grep -qi "^content-security-policy: default-src 'self'; script-src 'self'; style-src 'self';" "$headers" \
+  || fail "GET /: missing or relaxed CSP: $(grep -i '^content-security-policy' "$headers")"
+grep -qi '^x-content-type-options: nosniff' "$headers" || fail "GET /: missing nosniff"
+echo "$page" | grep -q '<div id="root"></div>' || fail "GET /: not the VCKB app shell"
+echo "$page" | grep -qi '<script type="module"[^>]* src="/assets/' || fail "GET /: app script missing"
+rm -f "$headers"
+code=$(status GET /p/some-project)
+[ "$code" = 200 ] || fail "SPA fallback: expected 200, got $code"
+ok "GET / serves the web UI with the CSP; client routes fall back to it"
+
 code=$(status GET /api/projects "${auth[@]}" -H 'Host: evil.example')
 [ "$code" = 421 ] || fail "foreign Host header: expected 421, got $code"
 ok "foreign Host header -> 421 (DNS rebinding guard)"
