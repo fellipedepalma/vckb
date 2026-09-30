@@ -30,18 +30,20 @@ When a test fails or something behaves unexpectedly, find the root cause
 - Backend: Hono + `@hono/node-server`; real time via chokidar → SSE
 - Files: gray-matter (reading **YAML** frontmatter only), js-yaml (writing)
 - CLI: `node:util` `parseArgs`, no server needed (talks to the files directly)
-- Frontend: React + Vite + Tailwind + dnd-kit (in `web/`, in progress)
-- Tests: vitest
+- Frontend: React + Vite + Tailwind + dnd-kit (in `web/`), built to `dist/web` and served by the same server
+- Tests: vitest (`server` and `web` projects), Playwright (chromium) e2e against the production build
 
 ## Commands
 
 | Task | Command |
 |---|---|
 | Install | `npm install` |
-| Dev (API + UI) | `npm run dev` (lands with the web UI) |
+| Dev (API + UI) | `npm run dev` (UI on http://localhost:5173, proxies /api) |
+| UI only | `npm run dev:web` |
 | API only | `npm run dev:server` |
 | Tests | `npm test` |
-| Typecheck | `npm run typecheck` |
+| Typecheck | `npm run typecheck` (server and web) |
+| E2E | `npm run test:e2e` (builds first; `npx playwright install chromium` once) |
 | Dependency audit | `npm run audit` |
 | Build | `npm run build` |
 | Production | `npm start` |
@@ -54,8 +56,9 @@ When a test fails or something behaves unexpectedly, find the root cause
 src/core/     file format, validation, BoardStore (all business rules live here)
 src/server/   Hono app (routes, auth, SSE) + watcher
 src/cli/      vckb CLI
-web/          React UI (in progress)
+web/          React UI (src/strings.ts holds every UI text; src/api.ts is the only fetch wrapper)
 tests/        vitest (core, API, CLI, security)
+e2e/          Playwright (fails on any console error or CSP violation)
 boards/       data (one directory per project). Only boards/example/ is versioned;
               real boards live outside the repo (VCKB_BOARDS_DIR)
 ```
@@ -108,3 +111,16 @@ Task files are also written by humans and agents directly, so reading must never
 - Markdown rendered in the UI must never interpret raw HTML; links with `javascript:` or `data:`
   URLs are blocked.
 - Auth changes need tests in `tests/security.test.ts` that fail when the protection is removed.
+
+## Web UI rules
+
+- Never `dangerouslySetInnerHTML`. Never store the token in JS memory beyond the sign-in request,
+  `localStorage` or `sessionStorage`; the session is the HttpOnly cookie.
+- All requests go through `web/src/api.ts` (it adds the CSRF header, `If-Match`, and turns a 401 into
+  "back to sign-in"). No other `fetch` calls.
+- No external resources (CDNs, Google Fonts, remote images). Fonts are bundled (OFL). Frontend packages
+  are devDependencies: they end up in the bundle, not in the production `node_modules`.
+- Never relax the CSP. If a library needs `unsafe-inline`/`unsafe-eval`, stop and propose an alternative.
+- Every text shown to users lives in `web/src/strings.ts`.
+- Design tokens are in `web/src/styles.css`. Marigold means "needs you" (review column, warnings) and
+  nothing else. Text must meet WCAG AA contrast; control borders 3:1.

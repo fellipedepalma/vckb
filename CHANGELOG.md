@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Web UI** (first stage), served by the same server at `/` (`npm run build && npm start`): sign-in
+  with the token (clear messages for a wrong token, 429 with a countdown and 421 with the
+  `VCKB_ALLOWED_HOSTS` hint), sign-out, project tabs, a read-only board with every column and its
+  count, task cards (ID, title, priority, labels, checklist progress, warning mark), a banner
+  suggesting `vckb doctor` when the board has warnings, and live updates over SSE with a connection
+  indicator. Dark theme, bundled fonts, no external resources, strict CSP unchanged.
+- `npm run dev` runs the API and the UI (Vite on http://localhost:5173, proxying `/api`).
+- `GET /api/projects/:slug/board`: project, tasks and warnings from a single read.
 - Optimistic concurrency: tasks have an `etag` (content hash) in listings and an `ETag` header on
   task responses; `PATCH`, `DELETE` and `notes` honor `If-Match` and answer **412** when the file
   changed on disk since it was read. Requests without `If-Match` behave as before.
@@ -58,6 +66,9 @@ All notable changes to this project are documented here. The format follows
   never causes an ID to be reused.
 
 ### Fixed
+
+- Live updates could be lost: a task file created and removed quickly (while the watcher was still
+  waiting for its size to settle) produced no event at all, so open boards kept showing it.
 
 - Stale cross-process locks: a lock left by a dead process is recovered at once (dead PID on the
   same host) or after 10 s without a heartbeat. Breaking a stale lock is serialized, so two

@@ -36,10 +36,16 @@ git clone https://github.com/fellipedepalma/vckb.git
 cd vckb
 npm install
 cp .env.example .env
-# coloque um token longo e aleatório no .env:
+# coloque um token longo e aleatório no .env (VCKB_TOKEN=...):
 node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
-npm run dev:server        # API em http://127.0.0.1:8787/api
+npm run build
+npm start                 # UI web em http://127.0.0.1:8787, API em /api
 ```
+
+Abra http://127.0.0.1:8787 e cole o token uma vez; o navegador recebe um cookie de sessão de 7 dias.
+
+Para desenvolver, `npm run dev` roda a API (com recarga automática) e a UI no Vite em
+http://localhost:5173, que repassa `/api` para a API na mesma origem (sem precisar de CORS).
 
 Instale o CLI globalmente (funciona sem o servidor rodando):
 

@@ -9,7 +9,16 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src", "tests", "vitest.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "vitest.config.ts",
+    "web/vite.config.ts",
+    "playwright.config.ts",
+    "e2e"
+  ]
 }

@@ -1,0 +1,57 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/atkinson-hyperlegible-next';
+@import '@fontsource-variable/atkinson-hyperlegible-mono';
+
+/*
+ * Tokens. Marigold has one meaning: "needs you" (the review column, warnings). Nothing else uses it.
+ */
+@theme {
+  --color-ground: #142026;
+  --color-lane: #1b2a31;
+  --color-card: #22343c;
+  --color-card-hover: #283d46;
+  --color-line: #33505b;
+  /* Borders of form controls: 3:1 against ground and lane (WCAG 1.4.11). */
+  --color-edge: #66838d;
+  --color-ink: #e6eef0;
+  --color-muted: #9fb2b8;
+  --color-marigold: #f2c14e;
+  --color-marigold-ink: #1d1603;
+  --color-salmon: #ff8a7a;
+  --color-steel: #8fb8c8;
+  --color-mint: #6fd3b0;
+  --color-focus: #cfe7ef;
+
+  --font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
