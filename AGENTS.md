@@ -38,7 +38,7 @@ Quando um teste falhar ou algo se comportar de forma inesperada, investigue a ca
 | Tarefa | Comando |
 |---|---|
 | Instalar | `npm install` |
-| Dev (API + UI) | `npm run dev` |
+| Dev (API + UI) | `npm run dev` (chega com a web UI) |
 | Só a API | `npm run dev:server` |
 | Testes | `npm test` |
 | Typecheck | `npm run typecheck` |

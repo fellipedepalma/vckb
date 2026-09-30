@@ -1,8 +1,27 @@
 {
   "name": "vckb",
   "version": "0.1.0",
-  "description": "Vibe Coding Kanban: kanban minimalista em arquivos Markdown para humanos e agentes de IA.",
+  "description": "Vibe Coding Kanban: a file-based kanban (Markdown + YAML frontmatter) that humans and AI coding agents share via web UI, CLI or REST API.",
+  "keywords": [
+    "kanban",
+    "markdown",
+    "ai-agents",
+    "vibe-coding",
+    "cli",
+    "task-manager",
+    "claude-code",
+    "agents-md"
+  ],
+  "homepage": "https://github.com/fellipedepalma/vckb#readme",
+  "bugs": {
+    "url": "https://github.com/fellipedepalma/vckb/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fellipedepalma/vckb.git"
+  },
   "license": "MIT",
+  "author": "Fellipe de Palma",
   "type": "module",
   "private": true,
   "engines": {
