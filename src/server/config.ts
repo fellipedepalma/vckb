@@ -1,8 +1,16 @@
+import { defaultAllowedHosts } from './auth.js';
+
 export interface ServerConfig {
   token: string;
   host: string;
   port: number;
   corsOrigins: string[];
+  /** Host names accepted in the Host header (VCKB_ALLOWED_HOSTS + loopback + bind address). */
+  allowedHosts: string[];
+  /** Extra origins accepted by the CSRF check (VCKB_ALLOWED_ORIGINS). */
+  allowedOrigins: string[];
+  /** Trust X-Forwarded-Proto/For (VCKB_TRUST_PROXY=true). */
+  trustProxy: boolean;
 }
 
 export const DEFAULT_HOST = '127.0.0.1';
@@ -33,10 +41,24 @@ export function readServerConfig(env: NodeJS.ProcessEnv): { config: ServerConfig
     warnings.push(`Listening on ${host}: the API is reachable from other machines on that network. Keep VCKB_HOST=127.0.0.1 unless you mean it.`);
   }
 
-  const corsOrigins = (env.VCKB_CORS_ORIGINS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const list = (v: string | undefined) =>
+    (v ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const corsOrigins = list(env.VCKB_CORS_ORIGINS);
+  const allowedHosts = defaultAllowedHosts(host, list(env.VCKB_ALLOWED_HOSTS));
+  const allowedOrigins: string[] = [];
+  for (const o of list(env.VCKB_ALLOWED_ORIGINS)) {
+    try {
+      const { origin } = new URL(o);
+      if (origin === 'null') throw new Error();
+      allowedOrigins.push(origin);
+    } catch {
+      errors.push(`VCKB_ALLOWED_ORIGINS: ${JSON.stringify(o)} is not an origin (e.g. https://vckb.example.ts.net).`);
+    }
+  }
+  const trustProxy = env.VCKB_TRUST_PROXY?.trim().toLowerCase() === 'true';
 
-  return { config: { token, host, port, corsOrigins }, errors, warnings };
+  return { config: { token, host, port, corsOrigins, allowedHosts, allowedOrigins, trustProxy }, errors, warnings };
 }

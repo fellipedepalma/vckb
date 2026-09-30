@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
-import { createApp } from '../src/server/app.js';
+import { type AppOptions, createApp } from '../src/server/app.js';
 import { tempWorkspace } from './helpers.js';
 
 export const TOKEN = 'test-token-0123456789abcdef';
 
-export async function apiSetup(opts: { corsOrigins?: string[]; maxBodyBytes?: number } = {}) {
+export async function apiSetup(opts: Partial<Omit<AppOptions, 'store' | 'events'>> = {}) {
   const ws = await tempWorkspace();
   const events = new EventEmitter();
   const app = createApp({ store: ws.store, token: TOKEN, events, sseHeartbeatMs: 50, ...opts });

@@ -103,10 +103,14 @@ stderr. See [Hand-edited files](#hand-edited-files).
 
 ## REST API
 
-All endpoints require `Authorization: Bearer $VCKB_TOKEN`. JSON in, JSON out.
+All endpoints require `Authorization: Bearer $VCKB_TOKEN`, or the web UI's session cookie (see
+[Security model](#security-model)). JSON in, JSON out.
 
 | Method | Path | Notes |
 |---|---|---|
+| POST | `/api/session` | `{ token }` → sets the `vckb_session` cookie. Needs `X-VCKB-CSRF` + same-host `Origin`; rate limited |
+| GET | `/api/session` | `{ authenticated, via: "cookie" \| "bearer", expiresAt }` |
+| POST | `/api/session/logout` | clears the cookie (204) |
 | GET | `/api/projects` | list projects |
 | POST | `/api/projects` | `{ name, slug?, description?, columns? }` |
 | GET | `/api/projects/:slug` | board (columns, nextId…) |
@@ -121,8 +125,9 @@ All endpoints require `Authorization: Bearer $VCKB_TOKEN`. JSON in, JSON out.
 
 `position` (0 = top) places the task inside its target column and renumbers the others.
 
-Errors are `{ "error": "message" }` with status 400 (validation), 401 (auth), 404 (not found),
-409 (conflict) or 413 (body too large). **409** also means the task ID is used by more than one
+Errors are `{ "error": "message" }` with status 400 (validation), 401 (auth), 403 (CSRF check
+failed), 404 (not found), 409 (conflict), 413 (body too large), 421 (`Host` not allowed) or 429
+(too many failed attempts; see `Retry-After`). **409** also means the task ID is used by more than one
 file: `PATCH`, `DELETE` and `notes` on that ID are refused until you run `vckb doctor <project> --fix`
 (reads still work and return the first file by name).
 
@@ -212,17 +217,46 @@ into each project's `AGENTS.md`, replacing `{{VCKB_BOARDS}}` and `{{PROJECT}}`. 
 
 VCKB is a **local, single-user tool**. Treat it like a dev server, not like a SaaS.
 
-- **Token.** Every API call needs `Authorization: Bearer <VCKB_TOKEN>`, compared in constant time.
+- **Token.** CLI-style clients send `Authorization: Bearer <VCKB_TOKEN>`, compared in constant time.
   The server refuses to start without a token of at least 16 characters.
+- **Web UI session.** The browser exchanges the token once (`POST /api/session`) for a
+  `vckb_session` cookie: `HttpOnly`, `SameSite=Strict`, `Path=/api`, 7 days, `Secure` over HTTPS. It
+  is an HMAC with a key derived from `VCKB_TOKEN` by HKDF, so page scripts never hold the token and
+  changing `VCKB_TOKEN` logs every browser out.
+- **CSRF.** A state-changing request authenticated only by the cookie must carry `X-VCKB-CSRF` and
+  an `Origin` whose host equals the request's `Host` (or is listed in `VCKB_ALLOWED_ORIGINS`);
+  otherwise 403. Bearer requests are exempt: browsers never add that header on their own.
+- **Host allow-list.** Requests whose `Host` is not `localhost`, `127.0.0.1`, `[::1]`, the bind
+  address or a name in `VCKB_ALLOWED_HOSTS` get 421. This blocks DNS rebinding.
+- **Rate limiting.** Failed logins and failed Bearer tokens are limited per client address with
+  exponential backoff (5 free attempts, then 1 s, 2 s, 4 s… up to 5 min; 429 with `Retry-After`).
+- **Headers.** A strict CSP (`default-src 'self'`, no inline script or style, `frame-ancestors
+  'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and
+  `Cache-Control: no-store` on the API.
 - **Loopback by default.** The server binds to `127.0.0.1`; Docker publishes the port on `127.0.0.1` unless you set `VCKB_BIND_IP`.
 - **CORS off by default.** Enable specific origins with `VCKB_CORS_ORIGINS`.
 - **Input hardening.** Strict validation of project slugs and task IDs plus resolved-path checks
   (no path traversal), request body limits, YAML-only frontmatter (no code evaluation).
 - **Remote access.** To reach VCKB from another device, use a private network such as
-  [Tailscale](https://tailscale.com/) or another VPN. **Never expose it directly to the internet**;
-  if you must, put it behind a reverse proxy with TLS and additional authentication.
+  [Tailscale](https://tailscale.com/) or another VPN and add its name/IP to `VCKB_ALLOWED_HOSTS`.
+  Prefer HTTPS (e.g. `tailscale serve`, then set `VCKB_TRUST_PROXY=true` so the cookie gets
+  `Secure`). **Never expose it directly to the internet**; if you must, put it behind a reverse proxy
+  with TLS and additional authentication.
 - **Files are trusted input.** Anyone who can write to the boards directory can change tasks; that's
   the design. Protect the directory like you protect your code.
+
+### Threat model
+
+| Threat | Mitigation | Not covered |
+|---|---|---|
+| Another website you visit (CSRF) | `SameSite=Strict` cookie, `X-VCKB-CSRF` + `Origin` check, CORS off | |
+| Another local dev server on a different port (same "site" for cookies) | `Origin` must match the exact host **and port** | It can still receive the cookie if you open it on `localhost`; don't run untrusted servers |
+| DNS rebinding (evil.example resolving to 127.0.0.1) | Host allow-list → 421 | |
+| XSS in the UI (e.g. through a task's Markdown) | No raw HTML rendered, `javascript:`/`data:` links blocked, strict CSP; the token is not reachable from JS | While the page is open, injected script can act as you |
+| Token guessing | Long random token, constant-time compare, per-client backoff | All local clients share one address (127.0.0.1) |
+| Sniffing on the network | Loopback by default; Tailscale/WireGuard or HTTPS for remote access | Plain HTTP on a LAN exposes the token and the cookie |
+| Stolen cookie | Expires in 7 days; rotate `VCKB_TOKEN` to revoke all sessions | Logout clears the browser's cookie but can't revoke a copied one |
+| Malicious process on your machine | Out of scope: it can read the boards directory and `.env` directly | |
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
 

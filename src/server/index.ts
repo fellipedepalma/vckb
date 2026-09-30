@@ -14,7 +14,7 @@ const { config, errors, warnings } = readServerConfig(process.env);
 for (const e of errors) console.error(`[vckb] ${e}`);
 if (errors.length) process.exit(1);
 for (const w of warnings) console.warn(`[vckb] warning: ${w}`);
-const { token, host, port, corsOrigins } = config;
+const { token, host, port, corsOrigins, allowedHosts, allowedOrigins, trustProxy } = config;
 const boardsDir = resolveBoardsDir();
 
 await fs.mkdir(boardsDir, { recursive: true });
@@ -22,7 +22,7 @@ await fs.mkdir(boardsDir, { recursive: true });
 const events = new EventEmitter();
 events.setMaxListeners(100);
 const store = new BoardStore(boardsDir);
-const app = createApp({ store, token, events, corsOrigins });
+const app = createApp({ store, token, events, corsOrigins, allowedHosts, allowedOrigins, trustProxy });
 const watcher = watchBoards(boardsDir, events);
 
 const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {

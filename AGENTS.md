@@ -94,6 +94,14 @@ Task files are also written by humans and agents directly, so reading must never
 
 ## Security
 
-- The API requires `Authorization: Bearer $VCKB_TOKEN` (constant-time comparison).
+- The API requires `Authorization: Bearer $VCKB_TOKEN` (constant-time comparison) or the web UI's
+  `vckb_session` cookie (`src/server/auth.ts`: HMAC with an HKDF-derived key, 7 days).
+- Cookie-authenticated `POST/PUT/PATCH/DELETE` must pass the CSRF check (`X-VCKB-CSRF` + same-host
+  `Origin`). The UI must send both on every write; never relax the check for convenience.
+- `Host` must be in the allow-list (421 otherwise). Failed logins/Bearer tokens are rate limited.
+- Every response carries the CSP in `CONTENT_SECURITY_POLICY` (`src/server/app.ts`): the UI can't use
+  inline scripts or styles, external scripts or fonts, or `eval`.
 - The server listens on `127.0.0.1` by default. CORS is off unless `VCKB_CORS_ORIGINS` is set.
-- Markdown rendered in the UI must never interpret raw HTML.
+- Markdown rendered in the UI must never interpret raw HTML; links with `javascript:` or `data:`
+  URLs are blocked.
+- Auth changes need tests in `tests/security.test.ts` that fail when the protection is removed.

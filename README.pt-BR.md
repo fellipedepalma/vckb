@@ -104,9 +104,12 @@ o stderr. Veja [Arquivos editados à mão](#arquivos-editados-à-mão).
 
 ## API REST
 
-Todos os endpoints exigem `Authorization: Bearer $VCKB_TOKEN`. JSON na entrada e na saída.
+Todos os endpoints exigem `Authorization: Bearer $VCKB_TOKEN` ou o cookie de sessão da UI web (veja
+o [Modelo de segurança](#modelo-de-segurança)). JSON na entrada e na saída.
 A tabela completa está no [README em inglês](README.md#rest-api). Resumo:
 
+- `POST /api/session` (`{ token }` → cookie `vckb_session`; exige `X-VCKB-CSRF` e `Origin` do mesmo
+  host; com rate limit), `GET /api/session`, `POST /api/session/logout`
 - `GET/POST /api/projects`, `GET /api/projects/:slug`
 - `GET/POST /api/projects/:slug/tasks` (filtros `?status=&label=`)
 - `GET/PATCH/DELETE /api/projects/:slug/tasks/:id` (PATCH aceita `title, status, priority, labels, body, description, checklist, position, order`)
@@ -114,8 +117,9 @@ A tabela completa está no [README em inglês](README.md#rest-api). Resumo:
 - `GET /api/projects/:slug/summary`: contagem por coluna, próximas tarefas de `todo` por prioridade e `warnings`
 - `GET /api/events`: Server-Sent Events (`change` com `{ "project": "<slug>" }`)
 
-Erros vêm como `{ "error": "mensagem" }` com status 400 (validação), 401 (autenticação), 404 (não
-encontrado), 409 (conflito) ou 413 (corpo grande demais). **409** também indica que o ID da tarefa
+Erros vêm como `{ "error": "mensagem" }` com status 400 (validação), 401 (autenticação), 403 (falha
+na checagem de CSRF), 404 (não encontrado), 409 (conflito), 413 (corpo grande demais), 421 (`Host`
+não permitido) ou 429 (tentativas demais; veja `Retry-After`). **409** também indica que o ID da tarefa
 é usado por mais de um arquivo: `PATCH`, `DELETE` e `notes` nesse ID são recusados até você rodar
 `vckb doctor <projeto> --fix` (a leitura continua funcionando e retorna o primeiro arquivo pelo nome).
 
@@ -201,17 +205,45 @@ para o `AGENTS.md` de cada projeto, substituindo `{{VCKB_BOARDS}}` e `{{PROJETO}
 
 O VCKB é uma **ferramenta local, de um único usuário**. Trate-o como um servidor de desenvolvimento, não como um SaaS.
 
-- **Token.** Toda chamada exige `Authorization: Bearer <VCKB_TOKEN>`, comparado em tempo constante.
-  O servidor não sobe sem um token de pelo menos 16 caracteres.
+- **Token.** Clientes tipo CLI mandam `Authorization: Bearer <VCKB_TOKEN>`, comparado em tempo
+  constante. O servidor não sobe sem um token de pelo menos 16 caracteres.
+- **Sessão da UI web.** O navegador troca o token uma vez (`POST /api/session`) por um cookie
+  `vckb_session`: `HttpOnly`, `SameSite=Strict`, `Path=/api`, 7 dias, `Secure` em HTTPS. É um HMAC
+  com chave derivada do `VCKB_TOKEN` por HKDF: scripts da página nunca têm o token, e trocar o
+  `VCKB_TOKEN` desloga todos os navegadores.
+- **CSRF.** Requisição que altera estado autenticada só pelo cookie precisa do header `X-VCKB-CSRF`
+  e de um `Origin` cujo host seja igual ao `Host` da requisição (ou esteja em `VCKB_ALLOWED_ORIGINS`);
+  senão, 403. Requisições com Bearer são isentas: o navegador nunca envia esse header sozinho.
+- **Lista de hosts.** Requisições com `Host` diferente de `localhost`, `127.0.0.1`, `[::1]`, do
+  endereço de bind ou de um nome em `VCKB_ALLOWED_HOSTS` recebem 421. Isso bloqueia DNS rebinding.
+- **Rate limit.** Logins e tokens Bearer errados são limitados por endereço do cliente, com backoff
+  exponencial (5 tentativas livres, depois 1 s, 2 s, 4 s… até 5 min; 429 com `Retry-After`).
+- **Headers.** CSP restritiva (`default-src 'self'`, sem script ou estilo inline, `frame-ancestors
+  'none'`), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` e `Cache-Control:
+  no-store` na API.
 - **Só loopback por padrão.** O servidor escuta em `127.0.0.1`; o Docker publica a porta em `127.0.0.1`, a menos que você defina `VCKB_BIND_IP`.
 - **CORS desligado por padrão.** Libere origens específicas com `VCKB_CORS_ORIGINS`.
 - **Validação de entrada.** Slugs e IDs validados com regex estrita e checagem do caminho resolvido
   (sem path traversal), limite de tamanho das requisições, frontmatter só YAML (nada é executado).
 - **Acesso remoto.** Para acessar de outro dispositivo, use uma rede privada como o
-  [Tailscale](https://tailscale.com/) ou outra VPN. **Nunca exponha direto à internet**; se precisar,
-  use um proxy reverso com TLS e autenticação adicional.
+  [Tailscale](https://tailscale.com/) ou outra VPN e inclua o nome/IP em `VCKB_ALLOWED_HOSTS`.
+  Prefira HTTPS (ex.: `tailscale serve`, com `VCKB_TRUST_PROXY=true` para o cookie sair `Secure`).
+  **Nunca exponha direto à internet**; se precisar, use um proxy reverso com TLS e autenticação adicional.
 - **Os arquivos são entrada confiável.** Quem escreve no diretório de boards altera tarefas; isso é
   proposital. Proteja o diretório como protege seu código.
+
+### Modelo de ameaça
+
+| Ameaça | Mitigação | Não coberto |
+|---|---|---|
+| Outro site que você visita (CSRF) | Cookie `SameSite=Strict`, checagem de `X-VCKB-CSRF` + `Origin`, CORS desligado | |
+| Outro dev server local em outra porta (mesmo "site" para cookies) | O `Origin` precisa bater com host **e porta** exatos | Ele ainda pode receber o cookie se você abri-lo em `localhost`; não rode servidores não confiáveis |
+| DNS rebinding (evil.example resolvendo para 127.0.0.1) | Lista de hosts → 421 | |
+| XSS na UI (ex.: pelo Markdown de uma tarefa) | Sem HTML cru, links `javascript:`/`data:` bloqueados, CSP restritiva; o token não fica acessível ao JS | Com a página aberta, um script injetado age como você |
+| Adivinhar o token | Token longo e aleatório, comparação em tempo constante, backoff por cliente | Todos os clientes locais compartilham um endereço (127.0.0.1) |
+| Escuta na rede | Loopback por padrão; Tailscale/WireGuard ou HTTPS para acesso remoto | HTTP puro numa LAN expõe o token e o cookie |
+| Cookie roubado | Expira em 7 dias; troque o `VCKB_TOKEN` para revogar todas as sessões | O logout apaga o cookie do navegador, mas não revoga uma cópia |
+| Processo malicioso na sua máquina | Fora do escopo: ele lê o diretório de boards e o `.env` diretamente | |
 
 Achou uma vulnerabilidade? Veja o [SECURITY.md](SECURITY.md).
 

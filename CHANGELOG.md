@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Web UI authentication: `POST /api/session` exchanges `VCKB_TOKEN` for a `vckb_session` cookie
+  (HttpOnly, SameSite=Strict, Path=/api, 7 days, Secure over HTTPS; HMAC keyed by HKDF of the
+  token, so rotating the token revokes all sessions). `GET /api/session`, `POST /api/session/logout`.
+- CSRF protection for cookie-authenticated writes: `X-VCKB-CSRF` header plus an `Origin` matching
+  the `Host` (or listed in `VCKB_ALLOWED_ORIGINS`). Bearer requests are unaffected.
+- `Host` allow-list against DNS rebinding (loopback names, the bind address and
+  `VCKB_ALLOWED_HOSTS`); other hosts get **421**.
+- Per-client exponential backoff for failed logins and failed Bearer tokens (**429** with
+  `Retry-After`). `VCKB_TRUST_PROXY=true` makes X-Forwarded-Proto/For count.
+- Security headers on every response: strict CSP, `nosniff`, `Referrer-Policy: no-referrer`;
+  `Cache-Control: no-store` on the API.
 - `vckb doctor <project> [--fix] [--json]`: lists problems left by hand edits (duplicate IDs,
   repeated or missing `order`, incomplete frontmatter, status outside the columns, `nextId` behind
   the files, unparsable files). Read-only without `--fix`; with it, persists the defaults, gives
@@ -23,6 +34,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Breaking:** requests with a `Host` header other than `localhost`, `127.0.0.1`, `[::1]` or the
+  bind address are refused with 421 unless the name is added to `VCKB_ALLOWED_HOSTS` (matters when
+  you open VCKB through a Tailscale/LAN address or a hostname).
 - **Breaking:** `vckb list --json` returns `{ "tasks": [...], "warnings": [...] }` instead of a bare
   array. In text mode, warnings are printed to stderr.
 - **Breaking:** `invalidFiles` in the summary was replaced by `warnings` (unparsable files have

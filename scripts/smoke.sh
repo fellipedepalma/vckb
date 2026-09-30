@@ -63,6 +63,36 @@ if [ -n "${EXPECT_OWNER:-}" ]; then
   ok "task file owned by $owner"
 fi
 
+code=$(status GET /api/projects "${auth[@]}" -H 'Host: evil.example')
+[ "$code" = 421 ] || fail "foreign Host header: expected 421, got $code"
+ok "foreign Host header -> 421 (DNS rebinding guard)"
+
+# Web UI session: token -> HttpOnly cookie; cookie-authenticated writes need the CSRF proof.
+jar=$(mktemp)
+trap 'rm -f "$jar"' EXIT
+ui=(-H "Origin: $BASE_URL" -H 'X-VCKB-CSRF: 1')
+code=$(status POST /api/session "${ui[@]}" "${json[@]}" -c "$jar" -d "{\"token\":\"$VCKB_TOKEN\"}")
+[ "$code" = 200 ] || fail "login: expected 200, got $code"
+grep -q 'vckb_session' "$jar" || fail "login: no vckb_session cookie"
+grep -q '#HttpOnly_' "$jar" || fail "login: cookie is not HttpOnly"
+ok "login -> HttpOnly session cookie"
+
+code=$(status GET /api/projects -b "$jar")
+[ "$code" = 200 ] || fail "cookie read: expected 200, got $code"
+code=$(status POST "/api/projects/$SLUG/tasks" -b "$jar" "${json[@]}" -d '{"title":"no csrf"}')
+[ "$code" = 403 ] || fail "cookie write without CSRF proof: expected 403, got $code"
+code=$(status POST "/api/projects/$SLUG/tasks" -b "$jar" "${json[@]}" -H 'X-VCKB-CSRF: 1' -H 'Origin: http://evil.example' -d '{"title":"x"}')
+[ "$code" = 403 ] || fail "cookie write from a foreign Origin: expected 403, got $code"
+code=$(status POST "/api/projects/$SLUG/tasks" -b "$jar" "${ui[@]}" "${json[@]}" -d '{"title":"from the ui"}')
+[ "$code" = 201 ] || fail "cookie write with CSRF proof: expected 201, got $code"
+ok "cookie: reads 200, writes 403 without CSRF proof / foreign Origin, 201 with it"
+
+code=$(status POST /api/session/logout -b "$jar" -c "$jar" "${ui[@]}")
+[ "$code" = 204 ] || fail "logout: expected 204, got $code"
+code=$(status GET /api/projects -b "$jar")
+[ "$code" = 401 ] || fail "after logout: expected 401, got $code"
+ok "logout clears the session"
+
 leftovers=$(find "$BOARDS_DIR/$SLUG" -name '*.tmp-*' -o -name '.vckb.lock*' | head -n 5)
 [ -z "$leftovers" ] || fail "temp/lock files left behind: $leftovers"
 ok "no temp or lock files left behind"

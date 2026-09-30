@@ -16,11 +16,13 @@ published with credit to the reporter (unless you prefer otherwise).
 
 ## Scope
 
-VCKB is designed as a local, single-user tool bound to `127.0.0.1` with a Bearer token
-(see "Security model" in the [README](README.md#security-model)). Reports are especially welcome for:
+VCKB is designed as a local, single-user tool bound to `127.0.0.1` with a Bearer token, plus a
+session cookie for the web UI (see "Security model" and its threat model in the
+[README](README.md#security-model)). Reports are especially welcome for:
 
 - escaping the boards directory (path traversal, symlinks),
-- authentication bypass or token leakage,
+- authentication bypass, session forgery or token leakage,
+- CSRF, DNS rebinding or `Host`/`Origin` check bypasses,
 - code execution through task files or API input,
 - XSS in the web UI through task content.
 

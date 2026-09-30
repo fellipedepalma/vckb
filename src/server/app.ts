@@ -1,11 +1,24 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import type { EventEmitter } from 'node:events';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
 import { VckbError } from '../core/errors.js';
 import type { BoardStore, CreateTaskInput, UpdateTaskInput } from '../core/store.js';
+import {
+  createSession,
+  defaultAllowedHosts,
+  deriveSessionKey,
+  hostnameOf,
+  RateLimiter,
+  type RateLimitOptions,
+  SESSION_COOKIE,
+  SESSION_TTL_SECONDS,
+  tokenMatches,
+  verifySession,
+} from './auth.js';
 
 export interface AppOptions {
   store: BoardStore;
@@ -18,7 +31,34 @@ export interface AppOptions {
   maxBodyBytes?: number;
   /** SSE ping interval in ms (default 25 s). */
   sseHeartbeatMs?: number;
+  /** Host names accepted in the Host header (default: loopback names). Others get 421. */
+  allowedHosts?: string[];
+  /** Extra origins accepted by the CSRF check besides the request's own Host. */
+  allowedOrigins?: string[];
+  /** Trust X-Forwarded-Proto / X-Forwarded-For from a reverse proxy (VCKB_TRUST_PROXY=true). */
+  trustProxy?: boolean;
+  /** Backoff settings for failed logins and failed Bearer tokens. */
+  rateLimit?: RateLimitOptions;
+  /** Injectable clock in ms (tests). */
+  now?: () => number;
 }
+
+/** Applied to every response. The UI must work with it: no inline scripts or styles. */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join('; ');
+
+/** Header that cookie-authenticated state-changing requests must carry (forces a CORS preflight). */
+export const CSRF_HEADER = 'X-VCKB-CSRF';
+
+const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
  * Compares the Authorization header with the token in constant time.
@@ -28,10 +68,7 @@ export interface AppOptions {
 export function bearerMatches(header: string | undefined, token: string): boolean {
   if (!header || !token) return false;
   const m = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(header);
-  if (!m) return false;
-  const given = createHash('sha256').update(m[1]).digest();
-  const expected = createHash('sha256').update(token).digest();
-  return timingSafeEqual(given, expected);
+  return m ? tokenMatches(m[1], token) : false;
 }
 
 const STATUS: Record<VckbError['code'], 400 | 404 | 409> = { INVALID: 400, NOT_FOUND: 404, CONFLICT: 409 };
@@ -58,12 +95,77 @@ function pick<T>(src: Record<string, unknown>, keys: (keyof T & string)[]): T {
 
 const TASK_FIELDS = ['title', 'status', 'priority', 'labels', 'body', 'description', 'checklist', 'position'] as const;
 
+type Env = { Variables: { auth: 'bearer' | 'cookie'; sessionExpiresAt: number | null } };
+
 export function createApp(opts: AppOptions) {
   const { store, token, events } = opts;
   if (!token) throw new Error('VCKB_TOKEN is not set');
 
-  const app = new Hono();
-  const api = new Hono();
+  const now = opts.now ?? Date.now;
+  const sessionKey = deriveSessionKey(token);
+  const allowedHosts = new Set((opts.allowedHosts ?? defaultAllowedHosts('127.0.0.1')).map(hostnameOf));
+  const allowedOrigins = new Set((opts.allowedOrigins ?? []).map((o) => o.toLowerCase()));
+  const loginLimiter = new RateLimiter(opts.rateLimit);
+  const bearerLimiter = new RateLimiter(opts.rateLimit);
+
+  /** The Host header, not c.req.url: node-server takes the URL from an absolute-form request line. */
+  const hostOf = (c: Context) => (c.req.header('host') ?? new URL(c.req.url).host).toLowerCase();
+
+  const clientOf = (c: Context): string => {
+    if (opts.trustProxy) {
+      // The address appended by our own proxy is the last one; earlier entries are client-supplied.
+      const hops = (c.req.header('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (hops.length) return hops[hops.length - 1];
+    }
+    try {
+      return getConnInfo(c).remote.address ?? 'unknown';
+    } catch {
+      return 'unknown'; // no socket (in-process requests in tests)
+    }
+  };
+
+  const isHttps = (c: Context): boolean =>
+    new URL(c.req.url).protocol === 'https:' ||
+    (opts.trustProxy === true && c.req.header('x-forwarded-proto')?.split(',')[0].trim().toLowerCase() === 'https');
+
+  /** Why a cookie-authenticated state-changing request fails the CSRF check, or null if it passes. */
+  const csrfProblem = (c: Context): string | null => {
+    if (!c.req.header(CSRF_HEADER)) return `missing ${CSRF_HEADER} header`;
+    const origin = c.req.header('origin');
+    if (!origin || origin === 'null') return 'missing Origin header';
+    if (allowedOrigins.has(origin.toLowerCase())) return null;
+    let url: URL;
+    try {
+      url = new URL(origin);
+    } catch {
+      return 'invalid Origin header';
+    }
+    return url.host.toLowerCase() === hostOf(c) ? null : 'Origin does not match Host';
+  };
+
+  const tooMany = (c: Context, waitMs: number) => {
+    c.header('Retry-After', String(Math.ceil(waitMs / 1000)));
+    return c.json({ error: 'Too many failed attempts; try again later' }, 429);
+  };
+
+  const sessionCookie = (c: Context, value: string, maxAge: number) =>
+    setCookie(c, SESSION_COOKIE, value, { httpOnly: true, sameSite: 'Strict', path: '/api', maxAge, secure: isHttps(c) });
+
+  const app = new Hono<Env>();
+  const api = new Hono<Env>();
+
+  app.use('*', async (c, next) => {
+    // DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends "Host: evil.example".
+    if (!allowedHosts.has(hostnameOf(hostOf(c)))) {
+      c.res = c.json({ error: 'Misdirected request: host not allowed (see VCKB_ALLOWED_HOSTS)' }, 421);
+    } else {
+      await next();
+    }
+    c.res.headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+    c.res.headers.set('X-Content-Type-Options', 'nosniff');
+    c.res.headers.set('Referrer-Policy', 'no-referrer');
+    if (c.req.path.startsWith('/api')) c.res.headers.set('Cache-Control', 'no-store');
+  });
 
   if (opts.corsOrigins?.length) {
     api.use(
@@ -77,14 +179,6 @@ export function createApp(opts: AppOptions) {
     );
   }
 
-  api.use('*', async (c, next) => {
-    if (!bearerMatches(c.req.header('Authorization'), token)) {
-      c.header('WWW-Authenticate', 'Bearer');
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-    await next();
-  });
-
   api.use(
     '*',
     bodyLimit({
@@ -92,6 +186,74 @@ export function createApp(opts: AppOptions) {
       onError: (c) => c.json({ error: 'Request body too large' }, 413),
     }),
   );
+
+  // ------------------------------------------------------ session (web UI)
+
+  /** Exchanges VCKB_TOKEN for the session cookie. Rate limited per client, exponential backoff. */
+  api.post('/session', async (c) => {
+    const problem = csrfProblem(c);
+    if (problem) return c.json({ error: `CSRF check failed: ${problem}` }, 403);
+    const client = clientOf(c);
+    const wait = loginLimiter.retryAfterMs(client, now());
+    if (wait > 0) return tooMany(c, wait);
+    const body = await readJson(c);
+    if (typeof body.token !== 'string' || !tokenMatches(body.token, token)) {
+      loginLimiter.fail(client, now());
+      return c.json({ error: 'Invalid token' }, 401);
+    }
+    loginLimiter.succeed(client);
+    const session = createSession(sessionKey, now());
+    sessionCookie(c, session.value, SESSION_TTL_SECONDS);
+    return c.json({ expiresAt: new Date(session.expiresAt * 1000).toISOString() });
+  });
+
+  api.post('/session/logout', (c) => {
+    const problem = c.req.header('authorization') ? null : csrfProblem(c);
+    if (problem) return c.json({ error: `CSRF check failed: ${problem}` }, 403);
+    sessionCookie(c, '', 0);
+    return c.body(null, 204);
+  });
+
+  // ------------------------------------------------------ authentication
+
+  api.use('*', async (c, next) => {
+    const authorization = c.req.header('authorization');
+    if (authorization !== undefined) {
+      // Bearer: not sent automatically by browsers, so no CSRF check. Failures are rate limited.
+      const client = clientOf(c);
+      const wait = bearerLimiter.retryAfterMs(client, now());
+      if (wait > 0) return tooMany(c, wait);
+      if (!bearerMatches(authorization, token)) {
+        bearerLimiter.fail(client, now());
+        c.header('WWW-Authenticate', 'Bearer');
+        return c.json({ error: 'Unauthorized' }, 401);
+      }
+      bearerLimiter.succeed(client);
+      c.set('auth', 'bearer');
+      c.set('sessionExpiresAt', null);
+      return next();
+    }
+    const expiresAt = verifySession(sessionKey, getCookie(c, SESSION_COOKIE), now());
+    if (expiresAt === null) {
+      c.header('WWW-Authenticate', 'Bearer');
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    // The cookie is sent automatically, so state changes must prove they come from our own page.
+    if (MUTATING.has(c.req.method)) {
+      const problem = csrfProblem(c);
+      if (problem) return c.json({ error: `CSRF check failed: ${problem}` }, 403);
+    }
+    c.set('auth', 'cookie');
+    c.set('sessionExpiresAt', expiresAt);
+    return next();
+  });
+
+  api.get('/session', (c) => {
+    const expiresAt = c.get('sessionExpiresAt');
+    return c.json({ authenticated: true, via: c.get('auth'), expiresAt: expiresAt ? new Date(expiresAt * 1000).toISOString() : null });
+  });
+
+  // ------------------------------------------------------ board API
 
   api.get('/projects', async (c) => c.json(await store.listProjects()));
 
