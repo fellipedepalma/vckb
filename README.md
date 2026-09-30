@@ -71,9 +71,14 @@ docker compose up --build
 ```
 
 - The boards directory `${VCKB_BOARDS_DIR:-./boards}` is mounted at `/data` in the container.
-- The port is published on **127.0.0.1 only**.
-- The container runs as the unprivileged `node` user (uid 1000); make sure it can write to the
-  mounted directory.
+- Inside the container the server listens on `0.0.0.0` (required for the published port to work).
+  Exposure is decided by the port mapping, which defaults to **`127.0.0.1:8787`**: this machine only.
+- To reach it from your other devices, set the IP of **one** private interface in `.env`:
+  `VCKB_BIND_IP=<Tailscale IP>` (`tailscale ip -4`) or your LAN IP. Never `0.0.0.0`: it publishes on
+  every interface, and Docker's iptables rules bypass host firewalls such as ufw.
+- The container runs as non-root (uid/gid 1000 by default) with a read-only filesystem, no Linux
+  capabilities and `no-new-privileges`. On Linux the boards directory must be writable by that
+  user: set `VCKB_UID=$(id -u)` and `VCKB_GID=$(id -g)` in `.env` to run as yourself.
 
 ## CLI
 
@@ -199,7 +204,7 @@ VCKB is a **local, single-user tool**. Treat it like a dev server, not like a Sa
 
 - **Token.** Every API call needs `Authorization: Bearer <VCKB_TOKEN>`, compared in constant time.
   The server refuses to start without a token of at least 16 characters.
-- **Loopback by default.** The server binds to `127.0.0.1`; Docker publishes the port on `127.0.0.1` only.
+- **Loopback by default.** The server binds to `127.0.0.1`; Docker publishes the port on `127.0.0.1` unless you set `VCKB_BIND_IP`.
 - **CORS off by default.** Enable specific origins with `VCKB_CORS_ORIGINS`.
 - **Input hardening.** Strict validation of project slugs and task IDs plus resolved-path checks
   (no path traversal), request body limits, YAML-only frontmatter (no code evaluation).

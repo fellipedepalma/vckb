@@ -72,9 +72,14 @@ docker compose up --build
 ```
 
 - O diretório `${VCKB_BOARDS_DIR:-./boards}` é montado em `/data` no container.
-- A porta é publicada **só em 127.0.0.1**.
-- O container roda como o usuário sem privilégios `node` (uid 1000); garanta que ele consiga
-  escrever no diretório montado.
+- Dentro do container o servidor escuta em `0.0.0.0` (obrigatório para a porta publicada funcionar).
+  Quem decide a exposição é o mapeamento de porta: por padrão **`127.0.0.1:8787`**, só esta máquina.
+- Para acessar de outros dispositivos, defina no `.env` o IP de **uma** interface privada:
+  `VCKB_BIND_IP=<IP do Tailscale>` (`tailscale ip -4`) ou o IP da LAN. Nunca `0.0.0.0`: publica em
+  todas as interfaces e as regras de iptables do Docker passam por cima de firewalls como o ufw.
+- O container roda sem root (uid/gid 1000 por padrão), com sistema de arquivos só leitura, sem
+  capabilities e com `no-new-privileges`. No Linux, o diretório de boards precisa pertencer a esse
+  usuário: defina `VCKB_UID=$(id -u)` e `VCKB_GID=$(id -g)` no `.env` para usar o seu.
 
 ## CLI
 
@@ -188,7 +193,7 @@ O VCKB é uma **ferramenta local, de um único usuário**. Trate-o como um servi
 
 - **Token.** Toda chamada exige `Authorization: Bearer <VCKB_TOKEN>`, comparado em tempo constante.
   O servidor não sobe sem um token de pelo menos 16 caracteres.
-- **Só loopback por padrão.** O servidor escuta em `127.0.0.1`; o Docker publica a porta só em `127.0.0.1`.
+- **Só loopback por padrão.** O servidor escuta em `127.0.0.1`; o Docker publica a porta em `127.0.0.1`, a menos que você defina `VCKB_BIND_IP`.
 - **CORS desligado por padrão.** Libere origens específicas com `VCKB_CORS_ORIGINS`.
 - **Validação de entrada.** Slugs e IDs validados com regex estrita e checagem do caminho resolvido
   (sem path traversal), limite de tamanho das requisições, frontmatter só YAML (nada é executado).

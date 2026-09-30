@@ -5,22 +5,16 @@ import { loadEnv } from '../core/env.js';
 import { resolveBoardsDir } from '../core/paths.js';
 import { BoardStore } from '../core/store.js';
 import { createApp } from './app.js';
+import { readServerConfig } from './config.js';
 import { watchBoards } from './watcher.js';
 
 loadEnv();
 
-const token = process.env.VCKB_TOKEN ?? '';
-if (token.length < 16) {
-  console.error('[vckb] Set VCKB_TOKEN (min. 16 characters) in .env. See .env.example.');
-  process.exit(1);
-}
-
-const host = process.env.VCKB_HOST || '127.0.0.1';
-const port = Number(process.env.VCKB_PORT || 8787);
-const corsOrigins = (process.env.VCKB_CORS_ORIGINS ?? '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+const { config, errors, warnings } = readServerConfig(process.env);
+for (const e of errors) console.error(`[vckb] ${e}`);
+if (errors.length) process.exit(1);
+for (const w of warnings) console.warn(`[vckb] warning: ${w}`);
+const { token, host, port, corsOrigins } = config;
 const boardsDir = resolveBoardsDir();
 
 await fs.mkdir(boardsDir, { recursive: true });

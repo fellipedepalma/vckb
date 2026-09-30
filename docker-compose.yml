@@ -2,17 +2,33 @@ services:
   vckb:
     build: .
     image: vckb:local
-    # VCKB_TOKEN (and optionally VCKB_CORS_ORIGINS) come from .env
+    # VCKB_TOKEN (and optionally VCKB_CORS_ORIGINS) come from .env.
     env_file: .env
     environment:
-      # Inside the container: listen on all interfaces and read boards from the volume.
+      # Inside the container the server must listen on all interfaces; these override .env.
       VCKB_HOST: 0.0.0.0
       VCKB_PORT: "8787"
       VCKB_BOARDS_DIR: /data
     ports:
-      # Published on the host's loopback only. Do not change to 0.0.0.0 without a TLS proxy/VPN.
-      - "127.0.0.1:${VCKB_PORT:-8787}:8787"
+      # Host side of the port: "<host IP>:<host port>:8787". Default 127.0.0.1:8787 (this machine only).
+      # To reach VCKB from your other devices, set in .env the IP of ONE private interface, e.g.:
+      #   VCKB_BIND_IP=100.101.102.103   # Tailscale IP of this machine (`tailscale ip -4`)
+      #   VCKB_BIND_IP=192.168.1.20      # LAN IP (anyone on that network can then try the token)
+      # Never 0.0.0.0 without a TLS reverse proxy: it publishes on every interface, and Docker's
+      # iptables rules bypass host firewalls such as ufw.
+      - "${VCKB_BIND_IP:-127.0.0.1}:${VCKB_HOST_PORT:-8787}:8787"
+    # Non-root. Match the owner of the boards directory on the host so the container can write it:
+    #   VCKB_UID=$(id -u) VCKB_GID=$(id -g) docker compose up   (or put both in .env)
+    user: "${VCKB_UID:-1000}:${VCKB_GID:-1000}"
     volumes:
       # Host path of your boards (from .env or the shell); defaults to ./boards next to this file.
       - ${VCKB_BOARDS_DIR:-./boards}:/data
+    # Hardening: nothing but /data needs to be writable, and no Linux capabilities are needed.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
