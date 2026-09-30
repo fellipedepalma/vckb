@@ -23,7 +23,10 @@ services:
     volumes:
       # Host path of your boards (from .env or the shell); defaults to ./boards next to this file.
       - ${VCKB_BOARDS_DIR:-./boards}:/data
-    # Hardening: nothing but /data needs to be writable, and no Linux capabilities are needed.
+    # Hardening. The server and CLI write only under /data: board.json, tasks/*.md, the
+    # atomic-write temp files (<file>.tmp-<hex>, next to their target so rename is atomic) and the
+    # project locks (.vckb.lock/, .vckb.lock.breaking/). The rest of the filesystem is read-only;
+    # /tmp is a tmpfs as a safety net for Node and libraries. No Linux capabilities are needed.
     read_only: true
     tmpfs:
       - /tmp

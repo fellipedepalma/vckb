@@ -1,0 +1,71 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile (hadolint, fails on info and above)
+        run: docker run --rm -i hadolint/hadolint hadolint --failure-threshold info - < Dockerfile
+
+      - name: Prepare .env with a throwaway token and a boards dir owned by uid 1000
+        run: |
+          set -euo pipefail
+          token=$(openssl rand -hex 24)
+          echo "::add-mask::$token"
+          echo "VCKB_TOKEN=$token" >> "$GITHUB_ENV"
+          printf 'VCKB_TOKEN=%s\nVCKB_BOARDS_DIR=./ci-boards\n' "$token" > .env
+          mkdir ci-boards
+          # The runner user is not uid 1000; the container runs as 1000:1000 (compose default).
+          sudo chown 1000:1000 ci-boards
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      - name: Build image
+        run: docker compose build
+
+      - name: Start container
+        run: docker compose up -d --wait --wait-timeout 60
+
+      - name: Container runs as uid 1000 with a read-only root filesystem
+        run: |
+          set -euo pipefail
+          test "$(docker compose exec -T vckb id -u)" = 1000
+          test "$(docker compose exec -T vckb id -g)" = 1000
+          # /home/node belongs to uid 1000, so only read_only: true can make this fail.
+          if docker compose exec -T vckb sh -c 'touch /home/node/should-fail' 2>/dev/null; then
+            echo "root filesystem is writable" >&2; exit 1
+          fi
+          docker compose exec -T vckb sh -c 'touch /tmp/ok && rm /tmp/ok'
+
+      - name: Smoke test (auth, create a task, file in the volume owned by 1000:1000)
+        run: bash scripts/smoke.sh
+        env:
+          BASE_URL: http://127.0.0.1:8787
+          BOARDS_DIR: ./ci-boards
+          EXPECT_OWNER: "1000:1000"
+
+      - name: CLI inside the container reads the same volume
+        run: |
+          set -euo pipefail
+          slug=$(ls ci-boards | grep '^smoke-' | head -n 1)
+          docker compose exec -T vckb node bin/vckb.js list "$slug" --json | grep -q '"id": "T-001"'
+
+      - name: Container logs
+        if: always()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
