@@ -1,5 +1,44 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
+import type { Locator, Page } from '@playwright/test';
 import { expect, signIn, taskFile, test } from './fixtures.js';
+
+/**
+ * The accent color as the browser computes it, derived from the --color-accent token (never
+ * hard-coded): a throwaway element created and removed inside the same evaluate resolves it to rgb().
+ */
+async function accentColor(page: Page): Promise<string> {
+  const rgb = await page.evaluate(() => {
+    const token = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
+    const probe = document.createElement('span');
+    probe.style.color = token;
+    document.body.append(probe);
+    const computed = getComputedStyle(probe).color;
+    probe.remove();
+    return token ? computed : '';
+  });
+  expect(rgb, '--color-accent must be defined on :root').toMatch(/^rgb/);
+  return rgb;
+}
+
+/** Moves focus with Tab (keyboard modality, so :focus-visible applies) until `target` has it. */
+async function tabTo(page: Page, target: Locator, key: 'Tab' | 'Shift+Tab' = 'Tab', max = 40) {
+  for (let i = 0; i < max; i++) {
+    await page.keyboard.press(key);
+    if (await target.evaluate((el) => el === document.activeElement)) break;
+  }
+  await expect(target).toBeFocused();
+}
+
+/** Focused: solid 2px ring in the accent color. Blurred: no visible ring. Web-first assertions retry. */
+async function expectFocusRing(target: Locator, accent: string) {
+  await expect(target).toBeFocused();
+  await expect(target).toHaveCSS('outline-style', 'solid');
+  await expect(target).toHaveCSS('outline-width', '2px');
+  await expect(target).toHaveCSS('outline-color', accent);
+  await target.blur();
+  await expect(target).not.toBeFocused();
+  await expect(target).toHaveCSS('outline-style', 'none');
+}
 
 test.describe('serving', () => {
   test('GET / returns the app shell with the CSP and security headers', async ({ request }) => {
@@ -108,7 +147,6 @@ test.describe('board', () => {
     await expect(page.getByRole('alert')).toHaveCount(1);
     await expect(page.getByText('vckb doctor example', { exact: true })).toBeVisible();
     await expect(page.getByRole('img', { name: 'This task has problems in its file' })).toBeVisible();
-    const { rm } = await import('node:fs/promises');
     await rm(file);
     await expect(page.getByText(/This board has/)).toBeHidden();
   });
@@ -146,26 +184,49 @@ test.describe('board', () => {
   test('card receives visible focus ring when navigating with Tab', async ({ page }) => {
     await signIn(page);
     await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
+    const accent = await accentColor(page);
+    const card = page.getByRole('article', { name: 'Dark mode' });
+    await tabTo(page, card);
+    await expectFocusRing(card, accent);
+  });
 
-    let foundCard = false;
-    for (let i = 0; i < 15; i++) {
-      await page.keyboard.press('Tab');
-      const { isCard, hasOutline } = await page.evaluate(() => {
-        const el = document.activeElement;
-        if (!el) return { isCard: false };
-        const isCard = el.tagName === 'ARTICLE';
-        const style = window.getComputedStyle(el);
-        const hasOutline = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
-        const hasBoxShadow = style.boxShadow !== 'none' && style.boxShadow !== '';
-        return { isCard, hasOutline: hasOutline || hasBoxShadow };
-      });
-      if (isCard) {
-        foundCard = true;
-        expect(hasOutline).toBe(true);
-        break;
-      }
+  test('controls receive strict focus ring', async ({ page }) => {
+    // Sign-in screen: the token field has focus on load; Tab reaches the button, Shift+Tab goes back.
+    await page.goto('/');
+    const token = page.getByLabel('Access token');
+    const signInButton = page.getByRole('button', { name: 'Sign in' });
+    await expect(token).toBeVisible();
+    const accent = await accentColor(page);
+    await tabTo(page, signInButton);
+    await expectFocusRing(signInButton, accent);
+    await tabTo(page, token, 'Shift+Tab');
+    await expectFocusRing(token, accent);
+
+    await token.fill(process.env.E2E_TOKEN!);
+    await signInButton.click();
+    await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
+
+    const projectTab = page.getByRole('link', { name: 'Example', exact: true });
+    await tabTo(page, projectTab);
+    await expectFocusRing(projectTab, accent);
+
+    const signOut = page.getByRole('button', { name: 'Sign out' });
+    await tabTo(page, signOut);
+    await expectFocusRing(signOut, accent);
+
+    // "Show problems" only exists while the board has warnings: create a hand-made broken file.
+    const file = taskFile('example', 'T-098-focus-check.md');
+    await writeFile(file, '---\ntitle: Focus check\nstatus: wip\n---\n');
+    try {
+      const showProblems = page.getByRole('button', { name: 'Show problems' });
+      await expect(showProblems).toBeVisible();
+      await tabTo(page, showProblems);
+      await expectFocusRing(showProblems, accent);
+    } finally {
+      await rm(file);
     }
-    expect(foundCard).toBe(true);
+    await expect(page.getByText(/This board has/)).toBeHidden();
   });
 });
 
