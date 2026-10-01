@@ -42,7 +42,7 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
   const bgClass = quiet ? 'bg-done-surface' : 'bg-surface hover:bg-surface-2 focus-within:bg-surface-2';
   const borderClass = quiet ? 'border-line' : 'border-line hover:border-accent focus-within:border-accent';
   const titleTextClass = quiet ? 'text-done-text' : 'text-text';
-  const shadowClass = quiet ? '' : 'shadow-sm hover:shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-all';
+  const shadowClass = quiet ? '' : 'shadow-sm hover:shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-[background-color,border-color,box-shadow,transform]';
   
   const prioColor = task.priority === 'high' ? 'text-danger' : task.priority === 'medium' ? 'text-accent-2' : 'text-muted';
 
@@ -50,7 +50,7 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
     <article
       aria-labelledby={titleId}
       tabIndex={0}
-      className={`rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+      className={`rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
     >
       <div className="flex items-center gap-2 text-[11px] text-muted">
         <span className="font-mono font-medium text-accent uppercase tracking-wider">{task.id}</span>
@@ -155,7 +155,7 @@ export function WarningsBanner({ slug, warnings }: { slug: string; warnings: Boa
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpen((o) => !o)}
-          className="rounded-md px-2.5 py-1 text-[13px] font-medium text-accent-2 underline-offset-4 hover:underline focus-visible:outline-accent"
+          className="rounded-md px-2.5 py-1 text-[13px] font-medium text-accent-2 underline-offset-4 hover:underline focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent"
         >
           {open ? s.hide : s.show}
         </button>

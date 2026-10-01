@@ -42,7 +42,7 @@ export function TopBar(props: {
                     e.preventDefault();
                     props.onSelect(p.slug);
                   }}
-                  className={`block whitespace-nowrap px-1 py-1 text-[14px] transition-colors ${
+                  className={`block whitespace-nowrap px-1 py-1 text-[14px] transition-[color,background-color,border-color,text-decoration-color,fill,stroke] ${
                     active ? 'font-bold text-text' : 'text-muted hover:text-text'
                   }`}
                 >
@@ -64,7 +64,7 @@ export function TopBar(props: {
         <button
           type="button"
           onClick={props.onSignOut}
-          className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-muted transition-colors hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-muted transition-[color,background-color,border-color,text-decoration-color,fill,stroke] hover:bg-surface-2 hover:text-text focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           {strings.session.signOut}
         </button>

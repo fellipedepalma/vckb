@@ -85,7 +85,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
             required
             aria-invalid={problem?.kind === 'wrong' || undefined}
             aria-describedby={message ? messageId : undefined}
-            className="mt-2 block w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 font-mono text-[15px] text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mt-2 block w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 font-mono text-[15px] text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
 
           <div className="mt-3 min-h-[2.5rem]">
@@ -99,7 +99,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
           <button
             type="submit"
             disabled={busy || blocked}
-            className="mt-2 w-full rounded-md bg-text px-4 py-2.5 font-semibold text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="mt-2 w-full rounded-md bg-text px-4 py-2.5 font-semibold text-surface transition-[color,background-color,border-color,text-decoration-color,fill,stroke] hover:bg-white disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {busy ? s.submitting : s.submit}
           </button>

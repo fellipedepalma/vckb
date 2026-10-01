@@ -67,6 +67,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Keyboard focus is always visible in the web UI: a solid 2px ring in the accent color on task
+  cards, the token field, buttons and project tabs (it could be missing because the outline style
+  wasn't set). Transitions now animate only colors, borders and shadows instead of every property.
 - Live updates could be lost: a task file created and removed quickly (while the watcher was still
   waiting for its size to settle) produced no event at all, so open boards kept showing it.
 
