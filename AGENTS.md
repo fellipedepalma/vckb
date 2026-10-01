@@ -77,6 +77,7 @@ boards/       data (one directory per project). Only boards/example/ is versione
 - Agent notes: new tasks use `## Agent notes`; `## Notas do agente` is accepted and preserved
   (`NOTES_HEADINGS` in `src/core/task-file.ts`).
 - Every bug fix gets a regression test. Security findings go in `tests/security.test.ts`.
+- Dates (`created`, `updated`, agent notes) use `YYYY-MM-DD` in the server's local timezone.
 - Style: 2 spaces, single quotes, semicolons, no `any` (except in tests).
 - Update `CHANGELOG.md` (section `Unreleased`) in the same commit as any user-visible change.
 

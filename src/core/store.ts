@@ -304,6 +304,11 @@ export class BoardStore {
   ) {}
 
   today(): string {
+    if (process.env.NODE_ENV === 'test' && process.env.VCKB_TODAY) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(process.env.VCKB_TODAY)) {
+        return process.env.VCKB_TODAY;
+      }
+    }
     return localDate(this.opts.now?.() ?? new Date());
   }
 

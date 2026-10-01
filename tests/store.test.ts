@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tempWorkspace } from './helpers.js';
+import { BoardStore } from '../src/core/store.js';
 
 async function setup() {
   const ws = await tempWorkspace();
@@ -10,6 +11,21 @@ async function setup() {
 }
 
 const ids = (tasks: { id: string }[]) => tasks.map((t) => t.id);
+
+describe('timezone', () => {
+  it('dates use the server local timezone (America/Sao_Paulo)', () => {
+    const oldTz = process.env.TZ;
+    process.env.TZ = 'America/Sao_Paulo';
+    try {
+      // 2026-10-01 02:30:00 UTC is 2026-09-30 23:30:00 in UTC-3 (São Paulo)
+      const st = new BoardStore('/tmp', { now: () => new Date('2026-10-01T02:30:00Z') });
+      expect(st.today()).toBe('2026-09-30');
+    } finally {
+      if (oldTz) process.env.TZ = oldTz;
+      else delete process.env.TZ;
+    }
+  });
+});
 
 describe('projects', () => {
   it('creates board.json with default columns and lists the project', async () => {
