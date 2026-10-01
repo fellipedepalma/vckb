@@ -88,7 +88,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
             className="mt-2 block w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 font-mono text-[15px] text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
 
-          <div className="mt-3 min-h-[1.5rem]">
+          <div className="mt-3 min-h-[2.5rem]">
             {message && (
               <p id={messageId} role="alert" aria-live="assertive" className="text-sm leading-snug text-danger">
                 {message}

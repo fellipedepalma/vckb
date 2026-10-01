@@ -42,6 +42,25 @@ test.describe('sign-in', () => {
     expect(session).toMatchObject({ httpOnly: true, sameSite: 'Strict', path: '/api' });
     expect(session!.value).not.toContain(process.env.E2E_TOKEN!);
   });
+
+  test('sign-in layout does not jump when error appears', async ({ page }) => {
+    await page.goto('/');
+    const heading = page.getByRole('heading', { name: 'Sign in' });
+    await expect(heading).toBeVisible();
+    
+    const boxBefore = await heading.boundingBox();
+    expect(boxBefore).not.toBeNull();
+    
+    await page.fill('input[name="token"]', 'wrong-token');
+    await page.click('button[type="submit"]');
+    
+    await expect(page.getByRole('alert')).toBeVisible();
+    
+    const boxAfter = await heading.boundingBox();
+    expect(boxAfter).not.toBeNull();
+    
+    expect(Math.abs(boxAfter!.y - boxBefore!.y)).toBeLessThanOrEqual(1);
+  });
 });
 
 test.describe('board', () => {
@@ -118,7 +137,35 @@ test.describe('board', () => {
       const totalWidth = sum + (4 * 16);
       console.log(`[Viewport ${width}] Content: ${contentWidth}px, Columns + Gaps: ${totalWidth}px`);
       expect(Math.abs(totalWidth - contentWidth)).toBeLessThanOrEqual(2);
+      
+      const isOverflowing = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      expect(isOverflowing).toBe(false);
     }
+  });
+
+  test('card receives visible focus ring when navigating with Tab', async ({ page }) => {
+    await signIn(page);
+    await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
+
+    let foundCard = false;
+    for (let i = 0; i < 15; i++) {
+      await page.keyboard.press('Tab');
+      const { isCard, hasOutline } = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el) return { isCard: false };
+        const isCard = el.tagName === 'ARTICLE';
+        const style = window.getComputedStyle(el);
+        const hasOutline = style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
+        const hasBoxShadow = style.boxShadow !== 'none' && style.boxShadow !== '';
+        return { isCard, hasOutline: hasOutline || hasBoxShadow };
+      });
+      if (isCard) {
+        foundCard = true;
+        expect(hasOutline).toBe(true);
+        break;
+      }
+    }
+    expect(foundCard).toBe(true);
   });
 });
 
