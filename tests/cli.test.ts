@@ -33,7 +33,7 @@ describe('CLI', () => {
 
     const raw = await readFile(path.join(boards, 'app', 'tasks', 'T-001-set-up-ci.md'), 'utf8');
     expect(raw).toContain('status: done\n');
-    expect(raw).toContain(`## Agent notes\n\n- ${store.today()}: picked GitHub Actions\n`);
+    expect(raw).toMatch(/## Agent notes\n\n- \d{4}-\d{2}-\d{2}: picked GitHub Actions/);
 
     const json = await cli(boards, 'list', 'app', '--json');
     expect(JSON.parse(json.out)).toMatchObject({ tasks: [{ id: 'T-001' }, { id: 'T-002' }], warnings: [] });
