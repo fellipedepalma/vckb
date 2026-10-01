@@ -59,6 +59,10 @@ test.describe('board', () => {
     }
     const reviewSection = page.getByRole('region', { name: 'Example' }).locator('section', { has: page.getByRole('heading', { name: /^Review/ }) });
     await expect(reviewSection.getByText('needs you', { exact: true }).or(reviewSection.getByText('NEEDS YOU', { exact: true }))).toBeVisible();
+    
+    const otherSections = page.getByRole('region', { name: 'Example' }).locator('section', { hasNot: page.getByRole('heading', { name: /^Review/ }) });
+    await expect(otherSections.getByText('needs you', { exact: true }).or(otherSections.getByText('NEEDS YOU', { exact: true }))).toHaveCount(0);
+    
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
   });
 
@@ -88,6 +92,33 @@ test.describe('board', () => {
     const { rm } = await import('node:fs/promises');
     await rm(file);
     await expect(page.getByText(/This board has/)).toBeHidden();
+  });
+  test('columns divide the available width and fill the container on wide screens', async ({ page }) => {
+    await signIn(page);
+    for (const width of [1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
+      
+      const container = page.getByRole('region', { name: 'Example' });
+      const columns = container.locator('section');
+      await expect(columns).toHaveCount(5);
+      
+      const contentWidth = await container.evaluate((el) => {
+        const style = window.getComputedStyle(el);
+        return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      });
+      
+      let sum = 0;
+      for (let i = 0; i < 5; i++) {
+        const box = await columns.nth(i).boundingBox();
+        expect(box).not.toBeNull();
+        sum += box!.width;
+      }
+      
+      const totalWidth = sum + (4 * 16);
+      console.log(`[Viewport ${width}] Content: ${contentWidth}px, Columns + Gaps: ${totalWidth}px`);
+      expect(Math.abs(totalWidth - contentWidth)).toBeLessThanOrEqual(2);
+    }
   });
 });
 

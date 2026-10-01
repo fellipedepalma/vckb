@@ -102,7 +102,7 @@ function Column({ name, tasks, warnedFiles }: { name: string; tasks: Task[]; war
   return (
     <section
       aria-labelledby={headingId}
-      className={`flex max-h-full w-[min(85vw,17rem)] shrink-0 snap-start flex-col rounded-[9px] border ${colBorder} ${colBg} sm:w-[17rem] overflow-hidden`}
+      className={`flex max-h-full snap-start flex-col rounded-[9px] border ${colBorder} ${colBg} overflow-hidden`}
     >
       <header className={`px-3 py-2.5 border-b ${review ? 'border-review bg-review/10' : 'border-line bg-surface'}`}>
         <div className="flex items-center justify-between">
@@ -203,7 +203,7 @@ export function Board({ snapshot }: { snapshot: BoardSnapshot }) {
       <WarningsBanner slug={project.slug} warnings={warnings} />
       {tasks.length === 0 && <p className="px-4 pt-4 text-muted sm:px-6">{strings.board.empty}</p>}
       <div
-        className="flex min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 pt-3 sm:snap-none sm:px-6"
+        className="grid min-h-0 flex-1 grid-flow-col auto-cols-[minmax(250px,1fr)] snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 pt-3 sm:snap-none sm:px-6"
         role="region"
         aria-label={project.name}
       >

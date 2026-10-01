@@ -58,7 +58,7 @@ export const strings = {
     needsYou: 'needs you',
     tasksLabel: 'Tasks',
     reviewLabel: 'Review',
-    warnsLabel: 'Warns',
+    warnsLabel: 'Warnings',
     kanbanLabel: 'kanban',
     labelsAria: 'Labels',
     breadcrumbAria: 'Breadcrumb',
