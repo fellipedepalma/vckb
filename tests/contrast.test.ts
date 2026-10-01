@@ -41,6 +41,7 @@ const textPairs = bgColors.flatMap((bg) => textColors.map((fg) => ({ fg, bg })))
 textPairs.push({ fg: 'done-text', bg: 'done-surface' });
 
 const borderPairs = [
+  { border: 'line-strong', bg: 'bg' },
   { border: 'line-strong', bg: 'surface' },
   { border: 'line-strong', bg: 'surface-2' },
 ];

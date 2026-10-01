@@ -22,7 +22,9 @@ test.describe('sign-in', () => {
   test.use({ expectedHttpErrors: [{ status: 401, url: /\/api\/session$/ }] });
 
   test('a wrong token shows a clear error; the right one opens the board', async ({ page }) => {
+    await expect(page.getByRole('alert')).toHaveCount(0);
     await signIn(page, 'definitely-not-the-token');
+    await expect(page.getByRole('alert')).toHaveCount(1);
     await expect(page.getByRole('alert')).toHaveText(/doesn’t match/);
     await page.getByLabel('Access token').fill(process.env.E2E_TOKEN!);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -55,7 +57,8 @@ test.describe('board', () => {
       const section = page.getByRole('region', { name: 'Example' }).locator('section', { has: page.getByRole('heading', { name: new RegExp(`^${column}`) }) });
       await expect(section.getByRole('heading', { name: title })).toBeVisible();
     }
-    await expect(page.getByText('needs you', { exact: true }).or(page.getByText('NEEDS YOU', { exact: true }))).toBeVisible();
+    const reviewSection = page.getByRole('region', { name: 'Example' }).locator('section', { has: page.getByRole('heading', { name: /^Review/ }) });
+    await expect(reviewSection.getByText('needs you', { exact: true }).or(reviewSection.getByText('NEEDS YOU', { exact: true }))).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
   });
 
@@ -79,6 +82,7 @@ test.describe('board', () => {
     const file = taskFile('example', 'T-099-by-hand.md');
     await writeFile(file, '---\ntitle: Quick idea from an agent\nstatus: wip\n---\n');
     await expect(page.getByText(/This board has \d+ problems? in its files/)).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(1);
     await expect(page.getByText('vckb doctor example', { exact: true })).toBeVisible();
     await expect(page.getByRole('img', { name: 'This task has problems in its file' })).toBeVisible();
     const { rm } = await import('node:fs/promises');
