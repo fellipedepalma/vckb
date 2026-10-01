@@ -71,7 +71,7 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
       {(task.labels.length > 0 || warned) && (
         <div className="mt-2.5 flex items-center justify-between">
           {task.labels.length > 0 && (
-            <ul className="flex flex-wrap gap-1" aria-label="Labels">
+            <ul className="flex flex-wrap gap-1" aria-label={strings.board.labelsAria}>
               {task.labels.map((l) => (
                 <li key={l} className={`rounded px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-widest ${quiet ? 'bg-done-surface text-done-text border border-line' : 'bg-surface-2 text-muted border border-line'}`}>
                   {l}
@@ -179,7 +179,7 @@ export function Board({ snapshot }: { snapshot: BoardSnapshot }) {
     <>
       <div className="px-4 py-6 sm:px-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <nav aria-label="Breadcrumb" className="text-[12px] font-medium text-accent uppercase tracking-widest mb-1">{project.slug}</nav>
+          <nav aria-label={strings.board.breadcrumbAria} className="text-[12px] font-medium text-accent uppercase tracking-widest mb-1">{project.slug}</nav>
           <h1 className="text-[28px] font-bold tracking-tighter text-text sm:text-[32px]">{project.name}</h1>
           <p className="mt-1 text-[13px] text-muted">
             <code className="rounded border border-line-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent">{project.slug}</code> {strings.board.kanbanLabel}

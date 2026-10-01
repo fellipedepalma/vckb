@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -13,7 +13,7 @@ function luminance(r: number, g: number, b: number) {
 function contrast(hex1: string, hex2: string) {
   const getRGB = (hex: string) => {
     let rgb = hex.replace('#', '');
-    if (rgb.length === 3) rgb = rgb.split('').map(c => c + c).join('');
+    if (rgb.length === 3) rgb = rgb.split('').map((c) => c + c).join('');
     return [parseInt(rgb.substring(0, 2), 16), parseInt(rgb.substring(2, 4), 16), parseInt(rgb.substring(4, 6), 16)];
   };
   const [r1, g1, b1] = getRGB(hex1);
@@ -25,49 +25,44 @@ function contrast(hex1: string, hex2: string) {
   return (brightest + 0.05) / (darkest + 0.05);
 }
 
+const cssPath = path.resolve(__dirname, '../web/src/styles.css');
+const cssContent = readFileSync(cssPath, 'utf-8');
+const colors: Record<string, string> = {};
+const regex = /--color-([^:]+):\s*(#[0-9a-fA-F]+)/g;
+let match;
+while ((match = regex.exec(cssContent)) !== null) {
+  colors[match[1]] = match[2];
+}
+
+const textColors = ['text', 'muted', 'accent', 'accent-2', 'review', 'danger'];
+const bgColors = ['surface', 'surface-2'];
+
+const textPairs = bgColors.flatMap((bg) => textColors.map((fg) => ({ fg, bg })));
+textPairs.push({ fg: 'done-text', bg: 'done-surface' });
+
+const borderPairs = [
+  { border: 'line-strong', bg: 'surface' },
+  { border: 'line-strong', bg: 'surface-2' },
+];
+
 describe('WCAG Contrast', () => {
-  it('checks contrast for all defined tokens', () => {
-    const cssPath = path.resolve(__dirname, '../web/src/styles.css');
-    const cssContent = readFileSync(cssPath, 'utf-8');
-    const colors: Record<string, string> = {};
-    const regex = /--color-([^:]+):\s*(#[0-9a-fA-F]+)/g;
-    let match;
-    while ((match = regex.exec(cssContent)) !== null) {
-      colors[match[1]] = match[2];
-    }
+  describe('Text contrast (>= 4.5:1)', () => {
+    it.each(textPairs)('$fg on $bg', ({ fg, bg }) => {
+      const fgHex = colors[fg];
+      const bgHex = colors[bg];
+      if (!fgHex || !bgHex) throw new Error(`Missing token ${fg} or ${bg}`);
+      const c = contrast(fgHex, bgHex);
+      expect(c).toBeGreaterThanOrEqual(4.5);
+    });
+  });
 
-    const checkText = (fgName: string, bgName: string) => {
-      const fg = colors[fgName];
-      const bg = colors[bgName];
-      if (!fg || !bg) throw new Error(`Missing token ${fgName} or ${bgName}`);
-      const c = contrast(fg, bg);
-      if (c < 4.5) throw new Error(`Contrast between ${fgName} (${fg}) and ${bgName} (${bg}) is ${c.toFixed(2)}, which is below 4.5:1`);
-    };
-
-    const checkBorder = (borderName: string, bgName: string) => {
-      const border = colors[borderName];
-      const bg = colors[bgName];
-      if (!border || !bg) throw new Error(`Missing token ${borderName} or ${bgName}`);
-      const c = contrast(border, bg);
-      if (c < 3) throw new Error(`Contrast between ${borderName} (${border}) and ${bgName} (${bg}) is ${c.toFixed(2)}, which is below 3:1`);
-    };
-
-    // Pairs to check for text (>= 4.5:1)
-    const textColors = ['text', 'muted', 'accent', 'accent-2', 'review', 'danger'];
-    const bgColors = ['bg', 'surface', 'surface-2'];
-
-    for (const bg of bgColors) {
-      for (const fg of textColors) {
-        checkText(fg, bg);
-      }
-    }
-
-    // Done column text over Done column surface
-    checkText('done-text', 'done-surface');
-
-    // Form borders (>= 3:1) against field backgrounds (usually surface or surface-2 or bg)
-    checkBorder('line-strong', 'bg');
-    checkBorder('line-strong', 'surface');
-    checkBorder('line-strong', 'surface-2');
+  describe('Border contrast (>= 3:1)', () => {
+    it.each(borderPairs)('$border on $bg', ({ border, bg }) => {
+      const borderHex = colors[border];
+      const bgHex = colors[bg];
+      if (!borderHex || !bgHex) throw new Error(`Missing token ${border} or ${bg}`);
+      const c = contrast(borderHex, bgHex);
+      expect(c).toBeGreaterThanOrEqual(3);
+    });
   });
 });

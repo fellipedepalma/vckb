@@ -60,6 +60,8 @@ export const strings = {
     reviewLabel: 'Review',
     warnsLabel: 'Warns',
     kanbanLabel: 'kanban',
+    labelsAria: 'Labels',
+    breadcrumbAria: 'Breadcrumb',
     columnName: (slug: string) => {
       const s = slug.replace(/-/g, ' ');
       return s.charAt(0).toUpperCase() + s.slice(1);
