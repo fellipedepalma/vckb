@@ -41,7 +41,6 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
   
   const bgClass = quiet ? 'bg-done-surface' : 'bg-surface hover:bg-surface-2 focus-within:bg-surface-2';
   const borderClass = quiet ? 'border-line' : 'border-line hover:border-accent focus-within:border-accent';
-  const textClass = quiet ? 'text-done-text' : 'text-text';
   const titleTextClass = quiet ? 'text-done-text' : 'text-text';
   const shadowClass = quiet ? '' : 'shadow-sm hover:shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-all';
   

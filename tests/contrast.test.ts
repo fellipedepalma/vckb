@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
-import path from 'path';
+import { describe, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 function luminance(r: number, g: number, b: number) {
   const a = [r, g, b].map(function (v) {
@@ -14,7 +14,7 @@ function contrast(hex1: string, hex2: string) {
   const getRGB = (hex: string) => {
     let rgb = hex.replace('#', '');
     if (rgb.length === 3) rgb = rgb.split('').map(c => c + c).join('');
-    return [parseInt(rgb.substr(0, 2), 16), parseInt(rgb.substr(2, 2), 16), parseInt(rgb.substr(4, 2), 16)];
+    return [parseInt(rgb.substring(0, 2), 16), parseInt(rgb.substring(2, 2), 16), parseInt(rgb.substring(4, 2), 16)];
   };
   const [r1, g1, b1] = getRGB(hex1);
   const [r2, g2, b2] = getRGB(hex2);
@@ -27,7 +27,7 @@ function contrast(hex1: string, hex2: string) {
 
 describe('WCAG Contrast', () => {
   it('checks contrast for all defined tokens', () => {
-    const cssPath = path.resolve(__dirname, 'styles.css');
+    const cssPath = path.resolve(__dirname, '../web/src/styles.css');
     const cssContent = readFileSync(cssPath, 'utf-8');
     const colors: Record<string, string> = {};
     const regex = /--color-([^:]+):\s*(#[0-9a-fA-F]+)/g;
