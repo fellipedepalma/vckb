@@ -6,21 +6,21 @@
  * Tokens. Marigold has one meaning: "needs you" (the review column, warnings). Nothing else uses it.
  */
 @theme {
-  --color-ground: #142026;
-  --color-lane: #1b2a31;
-  --color-card: #22343c;
-  --color-card-hover: #283d46;
-  --color-line: #33505b;
-  /* Borders of form controls: 3:1 against ground and lane (WCAG 1.4.11). */
-  --color-edge: #66838d;
-  --color-ink: #e6eef0;
-  --color-muted: #9fb2b8;
-  --color-marigold: #f2c14e;
-  --color-marigold-ink: #1d1603;
-  --color-salmon: #ff8a7a;
-  --color-steel: #8fb8c8;
-  --color-mint: #6fd3b0;
-  --color-focus: #cfe7ef;
+  --color-bg: #11151a;
+  --color-surface: #181e25;
+  --color-surface-2: #202832;
+  --color-line: #33404d;
+  --color-text: #edf2f6;
+  --color-muted: #93a2b0;
+  --color-accent: #69e7c3;
+  --color-accent-2: #f5bf5f;
+  --color-review: #e7a4ff;
+  --color-danger: #ff817b;
+  /* line-strong must have >= 3:1 against bg, surface, surface-2 */
+  --color-line-strong: #788c9f;
+  /* Done column tokens with >= 4.5:1 contrast */
+  --color-done-text: #8194a5;
+  --color-done-surface: #151a20;
 
   --font-sans: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
   --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, monospace;
@@ -28,8 +28,8 @@
 
 @layer base {
   html {
-    background: var(--color-ground);
-    color: var(--color-ink);
+    background: var(--color-bg);
+    color: var(--color-text);
     font-family: var(--font-sans);
     font-size: 16px;
     -webkit-font-smoothing: antialiased;

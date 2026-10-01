@@ -59,11 +59,16 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="w-full max-w-[26rem]">
-        <p className="mb-8 flex items-baseline gap-3">
-          <span className="text-2xl font-bold tracking-tight">{strings.app.name}</span>
-          <span className="text-muted">{strings.app.fullName}</span>
-        </p>
-        <form onSubmit={submit} className="rounded-[10px] border border-line bg-lane p-6" noValidate>
+        <div className="mb-8 flex items-center gap-3">
+          <div className="flex size-[30px] items-center justify-center rounded-[8px] bg-accent text-surface font-bold">
+            <svg className="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[17px] font-bold tracking-widest text-text leading-none">{strings.app.name}</span>
+            <span className="text-[9px] uppercase tracking-wider text-muted mt-0.5">{strings.app.fullName}</span>
+          </div>
+        </div>
+        <form onSubmit={submit} className="rounded-[10px] border border-line bg-surface p-6" noValidate>
           <h1 className="text-xl font-semibold">{s.title}</h1>
           <p className="mt-2 text-[15px] leading-relaxed text-muted">{s.intro}</p>
 
@@ -80,17 +85,17 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
             required
             aria-invalid={problem?.kind === 'wrong' || undefined}
             aria-describedby={message ? messageId : undefined}
-            className="mt-2 block w-full rounded-md border border-edge bg-ground px-3 py-2.5 font-mono text-[15px] text-ink placeholder:text-muted/70 focus:border-steel focus:outline-none focus-visible:outline-2 focus-visible:outline-focus"
+            className="mt-2 block w-full rounded-md border border-line-strong bg-bg px-3 py-2.5 font-mono text-[15px] text-text placeholder:text-muted/70 focus:border-accent focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           />
 
-          <p id={messageId} role="alert" aria-live="assertive" className="mt-3 min-h-[1.5rem] text-sm leading-snug text-salmon">
+          <p id={messageId} role="alert" aria-live="assertive" className="mt-3 min-h-[1.5rem] text-sm leading-snug text-danger">
             {message}
           </p>
 
           <button
             type="submit"
             disabled={busy || blocked}
-            className="mt-2 w-full rounded-md bg-ink px-4 py-2.5 font-semibold text-ground transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line disabled:text-muted"
+            className="mt-2 w-full rounded-md bg-text px-4 py-2.5 font-semibold text-surface transition-colors hover:bg-white disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {busy ? s.submitting : s.submit}
           </button>

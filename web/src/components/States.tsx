@@ -10,10 +10,10 @@ export function BoardSkeleton() {
         {strings.board.loading}
       </p>
       {[5, 3, 2, 1, 4].map((n, i) => (
-        <div key={i} aria-hidden="true" className="w-[min(85vw,17rem)] shrink-0 rounded-[10px] bg-lane p-2 sm:w-[17rem]">
-          <div className="mx-1 mb-3 mt-1 h-4 w-20 rounded bg-card" />
+        <div key={i} aria-hidden="true" className="w-[min(85vw,17rem)] shrink-0 rounded-[9px] border border-line bg-bg p-2 sm:w-[17rem]">
+          <div className="mx-1 mb-3 mt-1 h-4 w-20 rounded bg-surface" />
           {Array.from({ length: n }, (_, j) => (
-            <div key={j} className="mb-2 h-16 rounded-md bg-card/70" />
+            <div key={j} className="mb-2 h-[72px] rounded-md bg-surface" />
           ))}
         </div>
       ))}
@@ -29,11 +29,11 @@ export function describeError(err: unknown): string {
 
 export function ErrorPanel({ title, error, onRetry }: { title: string; error: unknown; onRetry?: () => void }) {
   return (
-    <div role="alert" className="mx-4 mt-6 max-w-xl rounded-md border-l-[3px] border-salmon bg-lane px-4 py-3 sm:mx-6">
-      <p className="font-semibold">{title}</p>
+    <div role="alert" className="mx-4 mt-6 max-w-xl rounded-md border-l-[3px] border-danger bg-surface px-4 py-3 sm:mx-6">
+      <p className="font-semibold text-danger">{title}</p>
       <p className="mt-1 text-[15px] text-muted">{describeError(error)}</p>
       {onRetry && (
-        <button type="button" onClick={onRetry} className="mt-3 rounded-md bg-card px-3 py-1.5 text-sm font-medium hover:bg-card-hover">
+        <button type="button" onClick={onRetry} className="mt-3 rounded-md bg-surface-2 px-3 py-1.5 text-sm font-medium hover:bg-line">
           {strings.board.retry}
         </button>
       )}

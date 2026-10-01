@@ -18,3 +18,5 @@ boards/*
 *.tmp-*
 .vckb.lock/
 .vckb.lock.breaking/
+
+.review-shots/

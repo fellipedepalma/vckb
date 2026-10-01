@@ -55,7 +55,7 @@ test.describe('board', () => {
       const section = page.getByRole('region', { name: 'Example' }).locator('section', { has: page.getByRole('heading', { name: new RegExp(`^${column}`) }) });
       await expect(section.getByRole('heading', { name: title })).toBeVisible();
     }
-    await expect(page.getByText('Waiting for your approval')).toBeVisible();
+    await expect(page.getByText('needs you', { exact: true }).or(page.getByText('NEEDS YOU', { exact: true }))).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
   });
 
