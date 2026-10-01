@@ -117,7 +117,7 @@ function Column({ name, tasks, warnedFiles }: { name: string; tasks: Task[]; war
           </span>
         </div>
         {review && tasks.length > 0 && (
-          <p className="mt-1 inline-block rounded bg-review px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-surface">needs you</p>
+          <p className="mt-1 inline-block rounded bg-review px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-widest text-surface">{strings.board.needsYou}</p>
         )}
       </header>
       <ol className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 ${name === DONE_COLUMN ? 'bg-bg' : 'bg-surface'}`}>
@@ -182,21 +182,21 @@ export function Board({ snapshot }: { snapshot: BoardSnapshot }) {
           <nav aria-label="Breadcrumb" className="text-[12px] font-medium text-accent uppercase tracking-widest mb-1">{project.slug}</nav>
           <h1 className="text-[28px] font-bold tracking-tighter text-text sm:text-[32px]">{project.name}</h1>
           <p className="mt-1 text-[13px] text-muted">
-            <code className="rounded border border-line-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent">{project.slug}</code> kanban
+            <code className="rounded border border-line-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-accent">{project.slug}</code> {strings.board.kanbanLabel}
           </p>
         </div>
         <div className="flex gap-6">
           <div className="flex flex-col items-end">
             <span className="text-2xl font-mono font-semibold text-text leading-none">{tasks.length}</span>
-            <span className="mt-1 text-[10px] uppercase tracking-widest text-muted">Tasks</span>
+            <span className="mt-1 text-[11px] uppercase tracking-widest text-muted">{strings.board.tasksLabel}</span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-2xl font-mono font-semibold text-review leading-none">{groups.get(REVIEW_COLUMN)?.length || 0}</span>
-            <span className="mt-1 text-[10px] uppercase tracking-widest text-muted">Review</span>
+            <span className="mt-1 text-[11px] uppercase tracking-widest text-muted">{strings.board.reviewLabel}</span>
           </div>
           <div className="flex flex-col items-end">
             <span className={`text-2xl font-mono font-semibold leading-none ${warnings.length > 0 ? 'text-danger' : 'text-muted'}`}>{warnings.length}</span>
-            <span className="mt-1 text-[10px] uppercase tracking-widest text-muted">Warns</span>
+            <span className="mt-1 text-[11px] uppercase tracking-widest text-muted">{strings.board.warnsLabel}</span>
           </div>
         </div>
       </div>

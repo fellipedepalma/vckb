@@ -55,6 +55,11 @@ export const strings = {
     emptyColumn: 'No tasks',
     count: (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`,
     reviewHint: 'Waiting for your approval',
+    needsYou: 'needs you',
+    tasksLabel: 'Tasks',
+    reviewLabel: 'Review',
+    warnsLabel: 'Warns',
+    kanbanLabel: 'kanban',
     columnName: (slug: string) => {
       const s = slug.replace(/-/g, ' ');
       return s.charAt(0).toUpperCase() + s.slice(1);

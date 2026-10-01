@@ -14,7 +14,7 @@ function contrast(hex1: string, hex2: string) {
   const getRGB = (hex: string) => {
     let rgb = hex.replace('#', '');
     if (rgb.length === 3) rgb = rgb.split('').map(c => c + c).join('');
-    return [parseInt(rgb.substring(0, 2), 16), parseInt(rgb.substring(2, 2), 16), parseInt(rgb.substring(4, 2), 16)];
+    return [parseInt(rgb.substring(0, 2), 16), parseInt(rgb.substring(2, 4), 16), parseInt(rgb.substring(4, 6), 16)];
   };
   const [r1, g1, b1] = getRGB(hex1);
   const [r2, g2, b2] = getRGB(hex2);

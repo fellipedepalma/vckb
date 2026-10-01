@@ -65,7 +65,7 @@ export function Login({ onSignedIn }: { onSignedIn: () => void }) {
           </div>
           <div className="flex flex-col">
             <span className="text-[17px] font-bold tracking-widest text-text leading-none">{strings.app.name}</span>
-            <span className="text-[9px] uppercase tracking-wider text-muted mt-0.5">{strings.app.fullName}</span>
+            <span className="text-[11px] uppercase tracking-wider text-muted mt-0.5">{strings.app.fullName}</span>
           </div>
         </div>
         <form onSubmit={submit} className="rounded-[10px] border border-line bg-surface p-6" noValidate>
