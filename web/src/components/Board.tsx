@@ -1,4 +1,21 @@
-import { useId, useState } from 'react';
+import {
+  closestCorners,
+  DndContext,
+  type DragEndEvent,
+  type DragOverEvent,
+  DragOverlay,
+  type DragStartEvent,
+  PointerSensor,
+  type PointerSensorOptions,
+  TouchSensor,
+  type UniqueIdentifier,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { type PointerEvent as ReactPointerEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { DONE_COLUMN, filesWithWarnings, groupByColumn, REVIEW_COLUMN } from '../board-model';
 import { strings } from '../strings';
 import type { BoardSnapshot, BoardWarning, Task } from '../types';
@@ -36,11 +53,16 @@ function ProgressCheck({ done, total, className }: { done: number; total: number
   );
 }
 
-export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: boolean; quiet?: boolean }) {
+/** `overlay`: the copy that follows the pointer while dragging (mint border, slight elevation). */
+export function TaskCard({ task, warned, quiet = false, overlay = false }: { task: Task; warned: boolean; quiet?: boolean; overlay?: boolean }) {
   const titleId = useId();
   
   const bgClass = quiet ? 'bg-done-surface' : 'bg-surface hover:bg-surface-2 focus-within:bg-surface-2';
-  const borderClass = quiet ? 'border-line' : 'border-line hover:border-accent focus-within:border-accent';
+  const borderClass = overlay
+    ? 'border-accent shadow-[0_10px_28px_rgba(0,0,0,0.5)] cursor-grabbing'
+    : quiet
+      ? 'border-line'
+      : 'border-line hover:border-accent focus-within:border-accent';
   const titleTextClass = quiet ? 'text-done-text' : 'text-text';
   const shadowClass = quiet ? '' : 'shadow-sm hover:shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-[background-color,border-color,box-shadow,transform]';
   
@@ -49,7 +71,7 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
   return (
     <article
       aria-labelledby={titleId}
-      tabIndex={0}
+      tabIndex={overlay ? -1 : 0}
       className={`rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
     >
       <div className="flex items-center gap-2 text-[11px] text-muted">
@@ -92,17 +114,75 @@ export function TaskCard({ task, warned, quiet = false }: { task: Task; warned: 
   );
 }
 
-function Column({ name, tasks, warnedFiles }: { name: string; tasks: Task[]; warnedFiles: Set<string> }) {
+/** Mouse and pen: a drag starts after 8px of movement, so a plain click never moves a card. */
+class MousePenSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown' as const,
+      handler: ({ nativeEvent: e }: ReactPointerEvent, { onActivation }: PointerSensorOptions) => {
+        if (e.pointerType === 'touch' || !e.isPrimary || e.button !== 0) return false;
+        onActivation?.({ event: e });
+        return true;
+      },
+    },
+  ];
+}
+
+const COLUMN_ID = 'col:';
+const columnId = (name: string) => `${COLUMN_ID}${name}`;
+
+/**
+ * A draggable card. Only the pointer/touch listeners are attached (no dnd-kit `attributes`):
+ * keyboard semantics for moving cards come in a later step.
+ */
+function SortableCard({ task, warned, quiet }: { task: Task; warned: boolean; quiet: boolean }) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: task.file });
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className="touch-manipulation"
+      {...listeners}
+    >
+      {isDragging ? (
+        // Where the card will land: a dashed mint outline of the same size (no opacity tricks).
+        <div className="rounded-[7px] border border-dashed border-accent">
+          <div className="invisible" aria-hidden="true">
+            <TaskCard task={task} warned={warned} quiet={quiet} />
+          </div>
+        </div>
+      ) : (
+        <TaskCard task={task} warned={warned} quiet={quiet} />
+      )}
+    </li>
+  );
+}
+
+function Column({
+  name,
+  tasks,
+  warnedFiles,
+  highlighted,
+}: {
+  name: string;
+  tasks: Task[];
+  warnedFiles: Set<string>;
+  highlighted: boolean;
+}) {
   const headingId = useId();
   const review = name === REVIEW_COLUMN;
-  
-  const colBorder = review ? 'border-review' : 'border-line';
-  const colBg = 'bg-bg';
+  const { setNodeRef } = useDroppable({ id: columnId(name) });
+
+  // The column under the pointer gets the mint border and a lighter surface (tokens; no opacity).
+  const colBorder = highlighted ? 'border-accent' : review ? 'border-review' : 'border-line';
+  const listBg = highlighted ? 'bg-surface-2' : name === DONE_COLUMN ? 'bg-bg' : 'bg-surface';
 
   return (
     <section
+      ref={setNodeRef}
       aria-labelledby={headingId}
-      className={`flex max-h-full snap-start flex-col rounded-[9px] border ${colBorder} ${colBg} overflow-hidden`}
+      data-drop-target={highlighted || undefined}
+      className={`flex max-h-full snap-start flex-col rounded-[9px] border ${colBorder} bg-bg overflow-hidden`}
     >
       <header className={`px-3 py-2.5 border-b ${review ? 'border-review bg-review/10' : 'border-line bg-surface'}`}>
         <div className="flex items-center justify-between">
@@ -120,16 +200,16 @@ function Column({ name, tasks, warnedFiles }: { name: string; tasks: Task[]; war
           <p className="mt-1 inline-block rounded bg-review px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-widest text-surface">{strings.board.needsYou}</p>
         )}
       </header>
-      <ol className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 ${name === DONE_COLUMN ? 'bg-bg' : 'bg-surface'}`}>
-        {tasks.map((t) => (
-          <li key={t.file}>
-            <TaskCard task={t} warned={warnedFiles.has(t.file)} quiet={name === DONE_COLUMN} />
-          </li>
-        ))}
-        {tasks.length === 0 && (
-          <li className="rounded-[7px] border border-dashed border-line px-3 py-4 text-center text-[12px] text-muted">{strings.board.emptyColumn}</li>
-        )}
-      </ol>
+      <SortableContext items={tasks.map((t) => t.file)} strategy={verticalListSortingStrategy}>
+        <ol className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 ${listBg}`}>
+          {tasks.map((t) => (
+            <SortableCard key={t.file} task={t} warned={warnedFiles.has(t.file)} quiet={name === DONE_COLUMN} />
+          ))}
+          {tasks.length === 0 && (
+            <li className="rounded-[7px] border border-dashed border-line px-3 py-4 text-center text-[12px] text-muted">{strings.board.emptyColumn}</li>
+          )}
+        </ol>
+      </SortableContext>
     </section>
   );
 }
@@ -171,10 +251,114 @@ export function WarningsBanner({ slug, warnings }: { slug: string; warnings: Boa
   );
 }
 
-export function Board({ snapshot }: { snapshot: BoardSnapshot }) {
+type Items = Record<string, string[]>;
+
+export interface BoardProps {
+  snapshot: BoardSnapshot;
+  /** Persist a move: `position` is the index in `status` without the moved card (0 = top). */
+  onMove?: (file: string, status: string, position: number) => void;
+  /** Tells the page a drag started/ended (live refetches are held back while dragging). */
+  onDragStateChange?: (dragging: boolean) => void;
+}
+
+export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   const { project, tasks, warnings } = snapshot;
   const groups = groupByColumn(project.columns, tasks);
   const warned = filesWithWarnings(warnings);
+  const byFile = useMemo(() => new Map(tasks.map((t) => [t.file, t])), [tasks]);
+  const derived = useMemo<Items>(
+    () => Object.fromEntries(project.columns.map((c) => [c, (groups.get(c) ?? []).map((t) => t.file)])),
+    [snapshot],
+  );
+
+  // While dragging, cards move between columns locally; otherwise the snapshot is the truth.
+  const [items, setItems] = useState<Items>(derived);
+  const [active, setActive] = useState<string | null>(null);
+  const [overColumn, setOverColumn] = useState<string | null>(null);
+  const start = useRef<{ items: Items; column: string; index: number } | null>(null);
+  useEffect(() => {
+    if (!active) setItems(derived);
+  }, [derived, active]);
+
+  const sensors = useSensors(
+    useSensor(MousePenSensor, { activationConstraint: { distance: 8 } }),
+    // Touch: long press, so swiping still scrolls the board sideways.
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
+
+  const containerOf = (id: UniqueIdentifier, from: Items = items): string | null => {
+    const key = String(id);
+    if (key.startsWith(COLUMN_ID)) return key.slice(COLUMN_ID.length);
+    return Object.keys(from).find((c) => from[c].includes(key)) ?? null;
+  };
+
+  const end = () => {
+    start.current = null;
+    setActive(null);
+    setOverColumn(null);
+    onDragStateChange?.(false);
+  };
+
+  const onDragStart = ({ active: a }: DragStartEvent) => {
+    const file = String(a.id);
+    const column = containerOf(file);
+    if (!column) return;
+    start.current = { items, column, index: items[column].indexOf(file) };
+    setActive(file);
+    setOverColumn(column);
+    onDragStateChange?.(true);
+  };
+
+  const onDragOver = ({ active: a, over }: DragOverEvent) => {
+    if (!over) return;
+    const from = containerOf(a.id);
+    const to = containerOf(over.id);
+    if (!from || !to) return;
+    setOverColumn(to);
+    if (from === to) return;
+    // Entering another column: put the card there now, so its cards make room for it.
+    setItems((prev) => {
+      const file = String(a.id);
+      const target = prev[to].filter((f) => f !== file);
+      let index = target.length;
+      if (!String(over.id).startsWith(COLUMN_ID)) {
+        const overIndex = target.indexOf(String(over.id));
+        const translated = a.rect.current.translated;
+        const below = translated && translated.top > over.rect.top + over.rect.height / 2;
+        index = overIndex >= 0 ? overIndex + (below ? 1 : 0) : target.length;
+      }
+      target.splice(index, 0, file);
+      return { ...prev, [from]: prev[from].filter((f) => f !== file), [to]: target };
+    });
+  };
+
+  const onDragEnd = ({ active: a, over }: DragEndEvent) => {
+    const origin = start.current;
+    const file = String(a.id);
+    const to = over ? containerOf(over.id) : null;
+    if (!origin || !to) {
+      if (origin) setItems(origin.items);
+      end();
+      return;
+    }
+    let list = items[to];
+    const from = list.indexOf(file);
+    const overIndex = String(over!.id).startsWith(COLUMN_ID) ? from : list.indexOf(String(over!.id));
+    if (from >= 0 && overIndex >= 0 && from !== overIndex) list = arrayMove(list, from, overIndex);
+    const position = list.indexOf(file);
+    setItems({ ...items, [to]: list });
+    // onMove updates the snapshot in the same batch as end(), so nothing flashes back.
+    if (position >= 0 && !(to === origin.column && position === origin.index)) onMove?.(file, to, position);
+    end();
+  };
+
+  const onDragCancel = () => {
+    if (start.current) setItems(start.current.items);
+    end();
+  };
+
+  const activeTask = active ? byFile.get(active) : undefined;
+  const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   return (
     <>
       <div className="px-4 py-6 sm:px-6 flex flex-wrap items-center justify-between gap-4">
@@ -207,9 +391,28 @@ export function Board({ snapshot }: { snapshot: BoardSnapshot }) {
         role="region"
         aria-label={project.name}
       >
-        {project.columns.map((c) => (
-          <Column key={c} name={c} tasks={groups.get(c) ?? []} warnedFiles={warned} />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={onDragCancel}
+          autoScroll
+        >
+          {project.columns.map((c) => (
+            <Column
+              key={c}
+              name={c}
+              tasks={(items[c] ?? []).map((f) => byFile.get(f)).filter((t): t is Task => !!t)}
+              warnedFiles={warned}
+              highlighted={active !== null && overColumn === c}
+            />
+          ))}
+          <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
+            {activeTask ? <TaskCard task={activeTask} warned={warned.has(activeTask.file)} overlay /> : null}
+          </DragOverlay>
+        </DndContext>
       </div>
     </>
   );

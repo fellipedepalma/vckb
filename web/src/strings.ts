@@ -75,6 +75,12 @@ export const strings = {
     hasWarnings: 'This task has problems in its file',
   },
 
+  move: {
+    failed: (id: string, reason: string) => `Couldn’t move ${id} (${reason}). It is back where it was.`,
+    conflict: (id: string) => `${id} changed on disk; the board was reloaded. Move it again if you still want to.`,
+    dismiss: 'Dismiss',
+  },
+
   warnings: {
     title: (n: number) => (n === 1 ? 'This board has 1 problem in its files' : `This board has ${n} problems in its files`),
     body: 'Usually a task file edited by hand. Nothing is lost; see the list and repair it from a terminal:',

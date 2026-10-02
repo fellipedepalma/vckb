@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Web UI: drag and drop cards between columns (empty ones and Done included) and within a column,
+  with the mouse or pen (starts after moving 8px, so a click never moves a card) or touch (long
+  press, so swiping still scrolls the board). The card moves at once and is saved with
+  `PATCH { status, position }` plus `If-Match`; any failure puts it back and explains why, and if the
+  file changed on disk meanwhile (412) the board is reloaded. Live updates wait until the drop.
+  Keyboard moves come later.
 - **Web UI** (first stage), served by the same server at `/` (`npm run build && npm start`): sign-in
   with the token (clear messages for a wrong token, 429 with a countdown and 421 with the
   `VCKB_ALLOWED_HOSTS` hint), sign-out, project tabs, a read-only board with every column and its

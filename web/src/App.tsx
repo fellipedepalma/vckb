@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, onUnauthorized, paths } from './api';
+import { applyMove } from './board-move';
 import { Board } from './components/Board';
 import { Login } from './components/Login';
-import { BoardSkeleton, ErrorPanel, Notice } from './components/States';
+import { BoardSkeleton, describeError, DismissibleAlert, ErrorPanel, Notice } from './components/States';
 import { TopBar } from './components/TopBar';
 import { useBoard, useDebounced, useLiveEvents, useProjectRoute, useProjects } from './hooks';
 import { strings } from './strings';
+import type { BoardSnapshot } from './types';
 
 type Session = { state: 'checking' } | { state: 'signedOut' } | { state: 'signedIn' } | { state: 'error'; error: unknown };
 
@@ -63,8 +65,27 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
   const refreshProjects = useDebounced(() => void reloadProjects(), 250);
   const known = useRef(new Set<string>());
   known.current = new Set(list.map((p) => p.slug));
+  // While a card is being dragged, live refetches wait: applying them mid-drag would move cards
+  // under the pointer. They run right after the drop.
+  const dragging = useRef(false);
+  const deferred = useRef(false);
+  const refreshBoardLive = useCallback(() => {
+    if (dragging.current) deferred.current = true;
+    else refreshBoard();
+  }, [refreshBoard]);
+  const onDragStateChange = useCallback(
+    (d: boolean) => {
+      dragging.current = d;
+      if (!d && deferred.current) {
+        deferred.current = false;
+        refreshBoard();
+      }
+    },
+    [refreshBoard],
+  );
+
   const live = useLiveEvents((project) => {
-    if (project === slug) refreshBoard();
+    if (project === slug) refreshBoardLive();
     if (!known.current.has(project)) refreshProjects();
   });
 
@@ -76,11 +97,44 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
       return;
     }
     if (live === 'live') {
-      refreshBoard();
+      refreshBoardLive();
       refreshProjects();
     }
     if (live === 'reconnecting') wasLive.current = true;
-  }, [live, refreshBoard, refreshProjects]);
+  }, [live, refreshBoardLive, refreshProjects]);
+
+  // Moves are optimistic: `pending` is shown at once and kept until the server's state (refetched
+  // after the PATCH) replaces it, so nothing flashes. Any failure rolls back to the server's state.
+  const [pending, setPending] = useState<BoardSnapshot | null>(null);
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
+  const moveSeq = useRef(0);
+  useEffect(() => {
+    setPending(null);
+    setMoveNotice(null);
+  }, [slug]);
+
+  const onMove = async (file: string, status: string, position: number) => {
+    const base = pending ?? board.data;
+    const task = base?.tasks.find((t) => t.file === file);
+    if (!base || !task || !slug) return;
+    const next = applyMove(base.tasks, file, status, position);
+    if (!next) return;
+    const mine = ++moveSeq.current;
+    setMoveNotice(null);
+    setPending({ ...base, tasks: next });
+    try {
+      await api.patch(paths.task(slug, task.id), { status, position }, { ifMatch: task.etag });
+      await reloadBoard();
+    } catch (err) {
+      const conflict = err instanceof ApiError && err.status === 412;
+      setMoveNotice(conflict ? strings.move.conflict(task.id) : strings.move.failed(task.id, describeError(err)));
+      if (mine === moveSeq.current) setPending(null);
+      if (conflict) await reloadBoard();
+      return;
+    }
+    if (mine === moveSeq.current) setPending(null);
+  };
+  const shown = pending ?? board.data;
 
   const signOut = async () => {
     try {
@@ -96,7 +150,7 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     content = <ErrorPanel title={strings.board.loadError} error={projects.error} onRetry={reloadProjects} />;
   else if (!list.length) content = <Notice title={strings.projects.none}>{strings.projects.noneHint}</Notice>;
   else if (slug && !list.some((p) => p.slug === slug)) content = <Notice title={strings.projects.notFound(slug)} />;
-  else if (board.data) content = <Board snapshot={board.data} />;
+  else if (shown) content = <Board snapshot={shown} onMove={onMove} onDragStateChange={onDragStateChange} />;
   else if (board.status === 'error') content = <ErrorPanel title={strings.board.loadError} error={board.error} onRetry={reloadBoard} />;
   else content = <BoardSkeleton />;
 
@@ -107,6 +161,7 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
         {board.status === 'error' && board.data && (
           <ErrorPanel title={strings.board.loadError} error={board.error} onRetry={reloadBoard} />
         )}
+        {moveNotice && <DismissibleAlert message={moveNotice} onDismiss={() => setMoveNotice(null)} />}
         {content}
       </main>
     </div>

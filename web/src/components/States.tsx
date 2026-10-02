@@ -27,6 +27,22 @@ export function describeError(err: unknown): string {
   return strings.errors.generic;
 }
 
+/** A message the user can close (e.g. a move that was rolled back). */
+export function DismissibleAlert({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div role="alert" className="mx-4 mt-3 flex items-start gap-3 rounded-md border border-danger/50 bg-danger/10 px-4 py-2.5 sm:mx-6">
+      <p className="flex-1 text-[14px] text-text">{message}</p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="rounded-md px-2 py-0.5 text-[13px] font-medium text-muted hover:text-text focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        {strings.move.dismiss}
+      </button>
+    </div>
+  );
+}
+
 export function ErrorPanel({ title, error, onRetry }: { title: string; error: unknown; onRetry?: () => void }) {
   return (
     <div role="alert" className="mx-4 mt-6 max-w-xl rounded-md border-l-[3px] border-danger bg-surface px-4 py-3 sm:mx-6">
