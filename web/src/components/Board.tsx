@@ -358,7 +358,6 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   };
 
   const activeTask = active ? byFile.get(active) : undefined;
-  const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   return (
     <>
       <div className="px-4 py-6 sm:px-6 flex flex-wrap items-center justify-between gap-4">
@@ -409,7 +408,9 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
               highlighted={active !== null && overColumn === c}
             />
           ))}
-          <DragOverlay dropAnimation={reducedMotion ? null : undefined}>
+          {/* No drop animation: while it ran (~250ms), grabbing the same card again was sometimes
+              ignored (seen in e2e: 3 of ~90 quick re-grabs failed with it, 0 of 40 without). */}
+          <DragOverlay dropAnimation={null}>
             {activeTask ? <TaskCard task={activeTask} warned={warned.has(activeTask.file)} overlay /> : null}
           </DragOverlay>
         </DndContext>
