@@ -95,6 +95,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Keyboard moves: after a failed save rolled a card back, focus could end up nowhere on a slow
+  machine (it was set before the board re-rendered). It now follows the card until it lands.
+
 - Keyboard moves: a key pressed right after Space (picking a card up) could be lost, so a quick
   Space, arrow, Space did nothing. dnd-kit only started listening for keys in a timer after the pick-up;
   the board now listens at once.

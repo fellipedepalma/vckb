@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { DONE_COLUMN, filesWithWarnings, groupByColumn, REVIEW_COLUMN } from '../board-model';
 import { isArrowKey, keyboardMove, locate } from '../keyboard-move';
@@ -315,19 +315,31 @@ export function WarningsBanner({ slug, warnings }: { slug: string; warnings: Boa
 type Items = Record<string, string[]>;
 
 /**
- * Puts focus back on a card after a keyboard drop, cancel or rollback (cards remount when they
- * change column, so the focused element is gone). Only when focus was lost (body) or is still on
- * the board, so it never steals focus from somewhere else.
+ * Puts focus back on a card after a keyboard drop, cancel or rollback. Cards remount when they change
+ * column, and a rollback re-renders the board some time later, so the request is kept and applied
+ * after every Board render (useLayoutEffect) to whatever element the card is now, until any key or
+ * pointer input (the user moved on) or 1.5 s. It only acts when focus is lost (on body: a removed
+ * element always leaves it there), so it never takes focus from anything the user focused.
  */
+let focusRequest: { file: string; until: number } | null = null;
+
 export function focusCard(file: string) {
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      const card = document.querySelector<HTMLElement>(`article[data-card-file="${window.CSS.escape(file)}"][tabindex="0"]`);
-      const current = document.activeElement;
-      const lost = !current || current === document.body || !!current.closest('[data-board]');
-      if (card && lost && current !== card) card.focus();
-    }),
-  );
+  focusRequest = { file, until: performance.now() + 1500 };
+  const clear = () => (focusRequest = null);
+  document.addEventListener('keydown', clear, { capture: true, once: true });
+  document.addEventListener('pointerdown', clear, { capture: true, once: true });
+  requestAnimationFrame(applyFocusRequest);
+}
+
+function applyFocusRequest() {
+  if (!focusRequest) return;
+  if (performance.now() > focusRequest.until) {
+    focusRequest = null;
+    return;
+  }
+  const card = document.querySelector<HTMLElement>(`article[data-card-file="${window.CSS.escape(focusRequest.file)}"][tabindex="0"]`);
+  const current = document.activeElement;
+  if (card && (!current || current === document.body)) card.focus();
 }
 
 /**
@@ -405,6 +417,9 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     },
     [columns],
   );
+
+  // A pending focus request (drop, cancel, rollback) follows the card to wherever this render put it.
+  useLayoutEffect(applyFocusRequest);
 
   const sensors = useSensors(
     useSensor(MousePenSensor, { activationConstraint: { distance: 8 } }),
