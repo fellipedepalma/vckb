@@ -140,6 +140,37 @@ export function TaskCard({
 }
 
 /** Mouse and pen: a drag starts after 8px of movement, so a plain click never moves a card. */
+/**
+ * dnd-kit's KeyboardSensor starts listening for keys in a setTimeout after the pick-up, so it doesn't
+ * treat the Space that started the drag (still bubbling) as "drop". Chrome runs input before timers,
+ * so a key pressed right after Space could arrive before that timer and was lost (seen on CI; with
+ * the CPU throttled 6x the e2e "keys pressed right after Space are not lost" failed 4 of 30 runs
+ * before, 0 of 30 after). This variant
+ * listens at once and ignores only the activating keydown. It relies on internals of
+ * @dnd-kit/core 6.3.1 (pinned); the e2e test guards it on upgrades.
+ */
+class ImmediateKeyboardSensor extends KeyboardSensor {}
+// \`attach\` is private in dnd-kit's types, so it is replaced on the prototype (the base constructor
+// calls this.attach(), which resolves here). Same as dnd-kit's, minus the setTimeout.
+Object.defineProperty(ImmediateKeyboardSensor.prototype, 'attach', {
+  value(this: {
+    props: { event: Event };
+    listeners: { add: (name: string, handler: (e: Event) => void) => void };
+    windowListeners: { add: (name: string, handler: (e: Event) => void) => void };
+    handleStart: () => void;
+    handleCancel: (e: Event) => void;
+    handleKeyDown: (e: Event) => void;
+  }) {
+    const activating = this.props.event;
+    this.handleStart();
+    this.windowListeners.add('resize', this.handleCancel);
+    this.windowListeners.add('visibilitychange', this.handleCancel);
+    this.listeners.add('keydown', (event) => {
+      if (event !== activating) this.handleKeyDown(event);
+    });
+  },
+});
+
 class MousePenSensor extends PointerSensor {
   static activators = [
     {
@@ -380,7 +411,7 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     // Touch: long press, so swiping still scrolls the board sideways.
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
     // Keyboard: Space picks up and drops, arrows move, Escape cancels. Enter is kept for opening a card.
-    useSensor(KeyboardSensor, {
+    useSensor(ImmediateKeyboardSensor, {
       keyboardCodes: { start: ['Space'], end: ['Space'], cancel: ['Escape'] },
       coordinateGetter,
     }),

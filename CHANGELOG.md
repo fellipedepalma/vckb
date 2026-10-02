@@ -95,6 +95,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Keyboard moves: a key pressed right after Space (picking a card up) could be lost, so a quick
+  Space, arrow, Space did nothing. dnd-kit only started listening for keys in a timer after the pick-up;
+  the board now listens at once.
+
 - Keyboard moves: screen readers could hear "moved to …" right after picking a card up, with no key
   pressed (dnd-kit re-measures the card when a refetch changes the layout). Only real moves are
   announced now.

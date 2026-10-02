@@ -201,6 +201,28 @@ test.describe('keyboard drag and drop', () => {
     await expect(liveRegion(page)).toHaveCount(1); // still one live region
   });
 
+  // Regression: dnd-kit's KeyboardSensor only started listening in a setTimeout after the pick-up;
+  // Chrome runs input before timers, so a key pressed right after Space was lost (failed on CI).
+  test('keys pressed right after Space are not lost (no waiting between keys)', async ({ page, request }) => {
+    const slug = uniqueSlug('kbd-fast');
+    await createProject(request, slug, [
+      ['Quick', 'todo'],
+      ['Other', 'todo'],
+    ]);
+    await openProject(page, slug, 'Quick');
+    for (const [key, column, order] of [
+      ['ArrowRight', 'doing', ['Quick']],
+      ['ArrowLeft', 'todo', ['Quick', 'Other']], // left keeps index 0: back on top
+      ['ArrowRight', 'doing', ['Quick']],
+    ] as const) {
+      await focusCard(page, 'Quick');
+      await page.keyboard.press('Space');
+      await page.keyboard.press(key);
+      await page.keyboard.press('Space');
+      await expect.poll(() => serverOrder(request, slug, column)).toEqual(order);
+    }
+  });
+
   test('one Tab stop per card', async ({ page, request }) => {
     const slug = uniqueSlug('kbd-tabstops');
     await createProject(request, slug, [
