@@ -1,0 +1,42 @@
+name: E2E stress
+
+# Manual only: runs the whole e2e suite N times in a row (no retries) to expose flaky tests.
+# Actions tab -> "E2E stress" -> "Run workflow" -> choose how many repetitions.
+on:
+  workflow_dispatch:
+    inputs:
+      repeat:
+        description: Times each e2e test runs (--repeat-each)
+        type: number
+        default: 10
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Run the e2e suite repeatedly
+        run: npx playwright test --repeat-each="$REPEAT" --retries=0
+        env:
+          CI: 'true'
+          REPEAT: ${{ inputs.repeat }}
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-stress-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
