@@ -97,6 +97,37 @@ describe('If-Match on PATCH / DELETE / notes', () => {
   });
 });
 
+describe('VCKB-Renumbered on PATCH', () => {
+  it('lists the other tasks a move rewrote, with etags that match their files on disk', async () => {
+    const { req, boards } = await setup(); // T-001 "Shared" in todo
+    await req('POST', '/api/projects/app/tasks', { title: 'Second', status: 'todo' });
+    await req('POST', '/api/projects/app/tasks', { title: 'Third', status: 'todo' });
+    // Third to the top: Shared (10 -> 20) and Second (20 -> 30) are rewritten.
+    const res = await req('PATCH', '/api/projects/app/tasks/T-003', { status: 'todo', position: 0 });
+    expect(res.status).toBe(200);
+    const header = res.headers.get('vckb-renumbered')!;
+    const listed = Object.fromEntries(
+      header.split(', ').map((part) => {
+        const [file, etag] = part.split('=');
+        return [decodeURIComponent(file), etag.replace(/"/g, '')];
+      }),
+    );
+    expect(Object.keys(listed).sort()).toEqual(['T-001-shared.md', 'T-002-second.md']);
+    for (const [file, etag] of Object.entries(listed)) {
+      expect(etag, file).toBe(etagOf(await readFile(path.join(boards, 'app', 'tasks', file), 'utf8')));
+    }
+    // With those etags, moving a neighbour right away is accepted (no 412).
+    const next = await req('PATCH', '/api/projects/app/tasks/T-001', { status: 'todo', position: 2 }, { 'If-Match': `"${listed['T-001-shared.md']}"` });
+    expect(next.status).toBe(200);
+  });
+
+  it('is absent when nothing else was rewritten', async () => {
+    const { req } = await setup();
+    const res = await req('PATCH', '/api/projects/app/tasks/T-001', { title: 'Renamed' });
+    expect(res.headers.get('vckb-renumbered')).toBeNull();
+  });
+});
+
 describe('parseIfMatch', () => {
   it('parses RFC 9110 forms', () => {
     expect(parseIfMatch(undefined)).toBeUndefined();

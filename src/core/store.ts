@@ -67,6 +67,11 @@ export interface WriteOptions {
    * ("*" matches any existing file). Otherwise it fails with PRECONDITION_FAILED.
    */
   ifMatch?: string[];
+  /**
+   * Filled with the other tasks this write renumbered (their files changed, so their etags did):
+   * a client moving cards in a row needs them for its next If-Match.
+   */
+  renumbered?: { id: string; file: string; etag: string }[];
 }
 
 export type WarningCode =
@@ -585,7 +590,15 @@ export class BoardStore {
    * Puts `doc` (stored as `file`) at `position` in the `status` column, renumbering order
    * (10, 20, 30...). A neighbor is written only if its order changed or it has defaults to persist.
    */
-  private async place(slug: string, entries: Entry[], file: string, doc: TaskDoc, status: string, position: number): Promise<void> {
+  private async place(
+    slug: string,
+    entries: Entry[],
+    file: string,
+    doc: TaskDoc,
+    status: string,
+    position: number,
+    renumbered?: WriteOptions['renumbered'],
+  ): Promise<void> {
     const column = entries.filter((e) => e.doc.status === status && e.file !== file).sort(byEntryOrder);
     const pos = Math.max(0, Math.min(position, column.length));
     const ordered: (Entry | null)[] = [...column];
@@ -593,7 +606,10 @@ export class BoardStore {
     for (const [i, e] of ordered.entries()) {
       const order = (i + 1) * 10;
       if (e === null) doc.order = order;
-      else if (e.doc.order !== order || e.missing.length) await this.writeEntry(slug, { file: e.file, doc: { ...e.doc, order } });
+      else if (e.doc.order !== order || e.missing.length) {
+        const etag = await this.writeEntry(slug, { file: e.file, doc: { ...e.doc, order } });
+        renumbered?.push({ id: e.doc.id, file: e.file, etag });
+      }
     }
   }
 
@@ -601,10 +617,17 @@ export class BoardStore {
    * Puts `doc` at the end of `status`. A column with repeated or missing order values is
    * renumbered on the way (the column is being rewritten anyway).
    */
-  private async placeAtEnd(slug: string, entries: Entry[], file: string, doc: TaskDoc, status: string): Promise<void> {
+  private async placeAtEnd(
+    slug: string,
+    entries: Entry[],
+    file: string,
+    doc: TaskDoc,
+    status: string,
+    renumbered?: WriteOptions['renumbered'],
+  ): Promise<void> {
     const others = entries.filter((e) => e.doc.status === status && e.file !== file);
     if (columnNeedsRenumber(others)) {
-      await this.place(slug, entries, file, doc, status, others.length);
+      await this.place(slug, entries, file, doc, status, others.length, renumbered);
     } else {
       doc.order = Math.max(0, ...others.map((e) => e.doc.order)) + 10;
     }
@@ -674,11 +697,11 @@ export class BoardStore {
       doc.status = status;
 
       if (patch.position !== undefined) {
-        await this.place(slug, entries, entry.file, doc, status, vInt(patch.position, 'position', 0, 100_000));
+        await this.place(slug, entries, entry.file, doc, status, vInt(patch.position, 'position', 0, 100_000), opts.renumbered);
       } else if (patch.order !== undefined) {
         doc.order = vInt(patch.order, 'order', -1_000_000, 1_000_000);
       } else if (moving) {
-        await this.placeAtEnd(slug, entries, entry.file, doc, status);
+        await this.placeAtEnd(slug, entries, entry.file, doc, status, opts.renumbered);
       }
 
       doc.updated = this.today();
