@@ -68,6 +68,9 @@ test.describe('drag and drop with the mouse', () => {
     for (const f of await readdir(dir)) saved.set(f, await readFile(path.join(dir, f), 'utf8'));
     try {
       await signIn(page);
+      // Other tests create projects that sort before "Example": open it explicitly.
+      await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
+      await page.goto('/p/example');
       await expect(card(page, 'Sync list with API')).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
       // Read-only observer: counts card nodes inserted into Todo AFTER the drop (pointerup), i.e. the
@@ -274,6 +277,41 @@ test.describe('the same card moved twice before the first save answers', () => {
     await expect(column(page, slug, 'Review').getByRole('article', { name: 'Twice' })).toBeVisible();
     expect(await flashes(page, 'Todo')).toBe(0);
     expect(await flashes(page, 'Doing')).toBe(0);
+  });
+
+  test('moving a neighbour while the previous save is pending is not a 412 (renumbered etags are used)', async ({ page, request }) => {
+    const slug = uniqueSlug('dnd-neighbour');
+    await createProject(request, slug, [
+      ['Alpha', 'todo'],
+      ['Bravo', 'todo'],
+      ['Charlie', 'todo'],
+    ]);
+    await openProject(page, slug, 'Alpha');
+    const answered: number[] = [];
+    page.on('response', (r) => r.request().method() === 'PATCH' && answered.push(r.status()));
+    let release!: () => void;
+    const secondDropped = new Promise<void>((r) => (release = r));
+    let first = true;
+    await page.route('**/api/projects/*/tasks/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      if (first) {
+        first = false;
+        await secondDropped;
+      }
+      return route.continue();
+    });
+    // Charlie to the top (renumbers Alpha and Bravo on the server), then Alpha to the bottom.
+    await mouseDrag(page, card(page, 'Charlie'), card(page, 'Alpha'), { at: 0.2 });
+    await expect.poll(() => titlesIn(page, slug, 'Todo')).toEqual(['Charlie', 'Alpha', 'Bravo']);
+    await mouseDrag(page, card(page, 'Alpha'), card(page, 'Bravo'), { at: 0.8 });
+    await expect.poll(() => titlesIn(page, slug, 'Todo')).toEqual(['Charlie', 'Bravo', 'Alpha']);
+    release();
+    await expect.poll(() => answered.length).toBe(2);
+    expect(answered).toEqual([200, 200]);
+    await expect.poll(() => serverOrder(request, slug, 'todo')).toEqual(['Charlie', 'Bravo', 'Alpha']);
+    await page.waitForTimeout(800);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(await titlesIn(page, slug, 'Todo')).toEqual(['Charlie', 'Bravo', 'Alpha']);
   });
 
   test('if the first save fails, the second is never sent and the card goes back to before the first move', async ({ page, request }) => {
