@@ -9,6 +9,13 @@ export interface ExpectedHttpError {
   url: RegExp;
 }
 
+/**
+ * Value for `test.use({ expectedHttpErrors: ... })`. Always use this: Playwright reads any array whose
+ * second element is an object as a `[value, options]` tuple, so a plain list of two or more errors
+ * would silently become just its first entry.
+ */
+export const httpErrors = (...errors: ExpectedHttpError[]): [ExpectedHttpError[], { scope: 'test' }] => [errors, { scope: 'test' }];
+
 const RESOURCE_ERROR = /^Failed to load resource: the server responded with a status of (\d+)/;
 
 /**

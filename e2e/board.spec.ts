@@ -1,6 +1,6 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import type { Locator, Page } from '@playwright/test';
-import { expect, signIn, taskFile, test } from './fixtures.js';
+import { expect, httpErrors, signIn, taskFile, test } from './fixtures.js';
 
 /**
  * The accent color as the browser computes it, derived from the --color-accent token (never
@@ -58,7 +58,7 @@ test.describe('serving', () => {
 });
 
 test.describe('sign-in', () => {
-  test.use({ expectedHttpErrors: [{ status: 401, url: /\/api\/session$/ }] });
+  test.use({ expectedHttpErrors: httpErrors({ status: 401, url: /\/api\/session$/ }) });
 
   test('a wrong token shows a clear error; the right one opens the board', async ({ page }) => {
     await expect(page.getByRole('alert')).toHaveCount(0);
