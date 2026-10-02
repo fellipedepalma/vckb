@@ -91,6 +91,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Keyboard moves: screen readers could hear "moved to …" right after picking a card up, with no key
+  pressed (dnd-kit re-measures the card when a refetch changes the layout). Only real moves are
+  announced now.
+
 - Moving a card right after moving another card of the same column (before the first save
   answered) could fail with "changed on disk": the first move renumbers its neighbours on the server,
   so their versions changed. Moves are now saved one at a time per project, each with the version

@@ -347,6 +347,8 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   const keyboard = useRef(false);
   const lastOrigin = useRef<{ column: string } | null>(null);
   const lastDrop = useRef<{ column: string; index: number; total: number } | null>(null);
+  /** Where the card was when "picked up"/"moved" was last announced (column:index). */
+  const lastSpoken = useRef<string | null>(null);
 
   /**
    * Arrow keys while a card is picked up: the move is decided by keyboardMove() (pure), applied to the
@@ -393,13 +395,21 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     return {
       onDragStart: ({ active: a }) => {
         const d = describe(String(a.id));
+        lastSpoken.current = d ? `${d.at.column}:${d.at.index}` : null;
         return d ? strings.dnd.pickedUp(d.task.id, d.task.title, columnLabel(d.at.column), d.at.index + 1, d.at.total) : undefined;
       },
       // Keyboard steps only (a pointer drag would announce on every pixel).
+      // Keyboard steps only (a pointer drag would announce on every pixel). dnd-kit also fires this
+      // when it re-measures the card (a refetch changing the layout, scrolling): announce only real
+      // moves, or "moved" would replace "Picked up" without any key being pressed.
       onDragMove: ({ active: a }) => {
         if (!keyboard.current) return undefined;
         const d = describe(String(a.id));
-        return d ? strings.dnd.moved(d.task.id, columnLabel(d.at.column), d.at.index + 1, d.at.total) : undefined;
+        if (!d) return undefined;
+        const where = `${d.at.column}:${d.at.index}`;
+        if (where === lastSpoken.current) return undefined;
+        lastSpoken.current = where;
+        return strings.dnd.moved(d.task.id, columnLabel(d.at.column), d.at.index + 1, d.at.total);
       },
       onDragOver: () => undefined,
       onDragEnd: ({ active: a }) => {
