@@ -14,8 +14,9 @@ All notable changes to this project are documented here. The format follows
   one live region; the card keeps a single Tab stop, gets a "draggable card" role description and
   instructions, and focus returns to it after a drop, cancel or rollback. Enter is reserved for the
   card details.
-- `PATCH` responses list the other tasks the move renumbered in `VCKB-Renumbered`
-  (`<url-encoded file>="<etag>", ...`).
+- `PATCH` responses include `renumbered` in the body: task ID -> new etag of the other tasks the
+  move renumbered. (A response header was tried first: with 500 cards in a column it reached
+  ~30 KB, more than common reverse proxies accept.)
 - `npm run demo` (Windows: double-click `VCKB-demo.bat`): builds VCKB, runs a frozen copy of the
   build on 127.0.0.1:8787 (or the next free port) with a copy of the example board in `.demo/`, a
   disposable token reused between runs, a timestamped `.demo/server.log`, and opens the browser.
@@ -98,7 +99,7 @@ All notable changes to this project are documented here. The format follows
 - Moving a card right after moving another card of the same column (before the first save
   answered) could fail with "changed on disk": the first move renumbers its neighbours on the server,
   so their versions changed. Moves are now saved one at a time per project, each with the version
-  the previous save reported (`VCKB-Renumbered`); edits made by anyone else still get a 412.
+  the previous save reported (`renumbered`); edits made by anyone else still get a 412.
 
 - Keyboard focus is always visible in the web UI: a solid 2px ring in the accent color on task
   cards, the token field, buttons and project tabs (it could be missing because the outline style

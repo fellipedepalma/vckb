@@ -52,23 +52,6 @@ export interface ApiResponse<T> {
   data: T;
   etag?: string;
   status: number;
-  /** Other tasks the request renumbered (PATCH moves): file -> new etag. */
-  renumbered: Map<string, string>;
-}
-
-/** Parses VCKB-Renumbered: `<encoded file>="<etag>", ...`. */
-export function parseRenumbered(header: string | null): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const part of (header ?? '').split(',')) {
-    const m = /^\s*([^=\s]+)="([0-9a-f]+)"\s*$/.exec(part);
-    if (!m) continue;
-    try {
-      out.set(decodeURIComponent(m[1]), m[2]);
-    } catch {
-      // malformed name: ignore
-    }
-  }
-  return out;
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
@@ -112,7 +95,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
   }
 
   const etag = res.headers.get('ETag')?.replace(/^"|"$/g, '') || undefined;
-  return { data: data as T, etag, status: res.status, renumbered: parseRenumbered(res.headers.get('VCKB-Renumbered')) };
+  return { data: data as T, etag, status: res.status };
 }
 
 export const api = {

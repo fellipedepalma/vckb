@@ -159,8 +159,8 @@ responses carry it in the `ETag` header. Send it back as `If-Match: "<etag>"` on
 or `notes`: if the file changed on disk since you read it (an agent edited it, say), the answer is
 **412** and nothing is written. Without `If-Match` the write proceeds (CLI-style clients).
 A move renumbers the other cards of its column, which changes their files: the `PATCH` response
-lists them in `VCKB-Renumbered: <url-encoded file>="<etag>", ...` so a client moving several cards in
-a row can send the right `If-Match` next.
+body has `renumbered`, a map of task ID to new etag for those cards, so a client moving several
+cards in a row can send the right `If-Match` next.
 
 `warnings` in `/summary` (and in `vckb list --json`) is a list of
 `{ code, message, file?, files?, id?, column?, fields? }`, with `code` one of `invalid_file`,

@@ -58,9 +58,6 @@ export const CONTENT_SECURITY_POLICY = [
   "form-action 'self'",
 ].join('; ');
 
-/** PATCH response header listing the other tasks a move renumbered, with their new etags. */
-export const RENUMBERED_HEADER = 'VCKB-Renumbered';
-
 /** Header that cookie-authenticated state-changing requests must carry (forces a CORS preflight). */
 export const CSRF_HEADER = 'X-VCKB-CSRF';
 
@@ -196,7 +193,7 @@ export function createApp(opts: AppOptions) {
         origin: opts.corsOrigins,
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE'],
         allowHeaders: ['Authorization', 'Content-Type', 'If-Match', CSRF_HEADER],
-        exposeHeaders: ['ETag', RENUMBERED_HEADER],
+        exposeHeaders: ['ETag'],
         maxAge: 600,
       }),
     );
@@ -316,9 +313,10 @@ export function createApp(opts: AppOptions) {
     const patch = pick<UpdateTaskInput>(body, [...TASK_FIELDS, 'order']);
     const renumbered: { id: string; file: string; etag: string }[] = [];
     const task = await store.updateTask(c.req.param('slug'), c.req.param('id'), patch, { ...ifMatch(c), renumbered });
-    // Other cards this move renumbered: `<encoded file>="<etag>", ...` (their files, and etags, changed).
-    if (renumbered.length) c.header(RENUMBERED_HEADER, renumbered.map((r) => `${encodeURIComponent(r.file)}="${r.etag}"`).join(', '));
-    return withEtag(c, task);
+    // Other cards this move renumbered (their files, and etags, changed), in the body: in a header a
+    // big column (500 cards -> ~30 KB) would exceed what common reverse proxies accept.
+    c.header('ETag', etagHeader(task.etag));
+    return c.json({ ...task, renumbered: Object.fromEntries(renumbered.map((r) => [r.id, r.etag])) });
   });
 
   api.delete('/projects/:slug/tasks/:id', async (c) => {

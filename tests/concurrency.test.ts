@@ -97,34 +97,52 @@ describe('If-Match on PATCH / DELETE / notes', () => {
   });
 });
 
-describe('VCKB-Renumbered on PATCH', () => {
-  it('lists the other tasks a move rewrote, with etags that match their files on disk', async () => {
+describe('renumbered etags in the PATCH body', () => {
+  it('lists the other tasks a move rewrote (id -> etag), matching their files on disk', async () => {
     const { req, boards } = await setup(); // T-001 "Shared" in todo
     await req('POST', '/api/projects/app/tasks', { title: 'Second', status: 'todo' });
     await req('POST', '/api/projects/app/tasks', { title: 'Third', status: 'todo' });
     // Third to the top: Shared (10 -> 20) and Second (20 -> 30) are rewritten.
     const res = await req('PATCH', '/api/projects/app/tasks/T-003', { status: 'todo', position: 0 });
     expect(res.status).toBe(200);
-    const header = res.headers.get('vckb-renumbered')!;
-    const listed = Object.fromEntries(
-      header.split(', ').map((part) => {
-        const [file, etag] = part.split('=');
-        return [decodeURIComponent(file), etag.replace(/"/g, '')];
-      }),
-    );
-    expect(Object.keys(listed).sort()).toEqual(['T-001-shared.md', 'T-002-second.md']);
-    for (const [file, etag] of Object.entries(listed)) {
-      expect(etag, file).toBe(etagOf(await readFile(path.join(boards, 'app', 'tasks', file), 'utf8')));
-    }
+    const body = await res.json();
+    expect(body).toMatchObject({ id: 'T-003', order: 10 });
+    expect(Object.keys(body.renumbered).sort()).toEqual(['T-001', 'T-002']);
+    expect(body.renumbered['T-001']).toBe(etagOf(await readFile(path.join(boards, 'app', 'tasks', 'T-001-shared.md'), 'utf8')));
+    expect(body.renumbered['T-002']).toBe(etagOf(await readFile(path.join(boards, 'app', 'tasks', 'T-002-second.md'), 'utf8')));
     // With those etags, moving a neighbour right away is accepted (no 412).
-    const next = await req('PATCH', '/api/projects/app/tasks/T-001', { status: 'todo', position: 2 }, { 'If-Match': `"${listed['T-001-shared.md']}"` });
+    const next = await req('PATCH', '/api/projects/app/tasks/T-001', { status: 'todo', position: 2 }, { 'If-Match': `"${body.renumbered['T-001']}"` });
     expect(next.status).toBe(200);
   });
 
-  it('is absent when nothing else was rewritten', async () => {
+  it('is empty when nothing else was rewritten', async () => {
     const { req } = await setup();
     const res = await req('PATCH', '/api/projects/app/tasks/T-001', { title: 'Renamed' });
-    expect(res.headers.get('vckb-renumbered')).toBeNull();
+    expect((await res.json()).renumbered).toEqual({});
+  });
+
+  // Fixes the limit: a header listing them reached ~30 KB with 500 cards (proxies reject 4-8 KB).
+  it('500 tasks in one column: response headers stay under 2 KB, all 499 etags are in the body', async () => {
+    const { req, boards } = await setup(); // T-001 in todo
+    const tasks = path.join(boards, 'app', 'tasks');
+    for (let i = 2; i <= 500; i++) {
+      const id = `T-${String(i).padStart(3, '0')}`;
+      await writeFile(
+        path.join(tasks, `${id}-task-${i}.md`),
+        `---\nid: ${id}\ntitle: Task ${i}\nstatus: todo\npriority: medium\nlabels: []\norder: ${i * 10}\ncreated: 2026-10-02\nupdated: 2026-10-02\n---\n`,
+      );
+    }
+    const res = await req('PATCH', '/api/projects/app/tasks/T-500', { status: 'todo', position: 0 });
+    expect(res.status).toBe(200);
+    let headerBytes = 0;
+    res.headers.forEach((v, k) => (headerBytes += Buffer.byteLength(`${k}: ${v}\r\n`)));
+    expect(headerBytes).toBeLessThan(2048);
+    const { renumbered } = await res.json();
+    expect(Object.keys(renumbered)).toHaveLength(499);
+    for (const id of ['T-001', 'T-250', 'T-499']) {
+      const file = id === 'T-001' ? 'T-001-shared.md' : `${id}-task-${Number(id.slice(2))}.md`;
+      expect(renumbered[id], id).toBe(etagOf(await readFile(path.join(tasks, file), 'utf8')));
+    }
   });
 });
 

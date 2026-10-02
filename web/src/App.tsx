@@ -108,8 +108,8 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
   //
   // Saves are queued per project: a move renumbers the other cards of its column (their files, and
   // so their etags, change), so each PATCH waits for the previous one and sends the newest etag known
-  // for its card: from the ETag of an earlier save of that card, or from VCKB-Renumbered of an earlier
-  // save of another card. Changes made by anyone else still get a 412. If a save fails, the moves
+  // for its card: from the ETag of an earlier save of that card, or from `renumbered` (id -> etag) in
+  // the response of an earlier save of another card. Changes made by anyone else still get a 412. If a save fails, the moves
   // already queued are not sent and the board returns to the server's state; later moves start afresh.
   const [pending, setPending] = useState<BoardSnapshot | null>(null);
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
@@ -136,8 +136,16 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     const save = queue.current.then(async (previousOk) => {
       if (!previousOk) return false; // an earlier queued move failed and was rolled back
       try {
-        const res = await api.patch(paths.task(slug, task.id), { status, position }, { ifMatch: etags.current.get(file) ?? task.etag });
-        const fresh = new Map(res.renumbered);
+        const res = await api.patch<{ renumbered?: Record<string, string> }>(paths.task(slug, task.id), { status, position }, {
+          ifMatch: etags.current.get(file) ?? task.etag,
+        });
+        // renumbered is keyed by task ID; etags are tracked by file (IDs can repeat on a damaged board).
+        const fileOf = new Map(base.tasks.map((t) => [t.id, t.file]));
+        const fresh = new Map<string, string>();
+        for (const [id, etag] of Object.entries(res.data?.renumbered ?? {})) {
+          const f = fileOf.get(id);
+          if (f && typeof etag === 'string') fresh.set(f, etag);
+        }
         if (res.etag) fresh.set(file, res.etag);
         for (const [f, etag] of fresh) etags.current.set(f, etag);
         if (fresh.size) setPending((p) => p && { ...p, tasks: p.tasks.map((t) => (fresh.has(t.file) ? { ...t, etag: fresh.get(t.file)! } : t)) });
