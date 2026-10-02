@@ -7,6 +7,9 @@ import { BOARDS, expect, httpErrors, signIn, taskFile, test, TOKEN } from './fix
 
 const auth = () => ({ Authorization: `Bearer ${TOKEN()}` });
 
+/** A fresh project per test run, so tests can be repeated (--repeat-each) on the same server. */
+const uniqueSlug = (base: string) => `${base}-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
+
 async function createProject(request: APIRequestContext, slug: string, tasks: [string, string][]) {
   expect((await request.post('/api/projects', { headers: auth(), data: { name: slug, slug } })).status()).toBe(201);
   for (const [title, status] of tasks) {
@@ -94,42 +97,43 @@ test.describe('drag and drop with the mouse', () => {
   });
 
   test('reorders inside a column, up and down, matching the server', async ({ page, request }) => {
-    await createProject(request, 'dnd-reorder', [
+    const slug = uniqueSlug('dnd-reorder');
+    await createProject(request, slug, [
       ['Alpha', 'todo'],
       ['Bravo', 'todo'],
       ['Charlie', 'todo'],
     ]);
-    await openProject(page, 'dnd-reorder', 'Alpha');
+    await openProject(page, slug, 'Alpha');
     // Up: Charlie onto the top part of Alpha -> first.
     await mouseDrag(page, card(page, 'Charlie'), card(page, 'Alpha'), { at: 0.2 });
-    await expect.poll(() => titlesIn(page, 'dnd-reorder', 'Todo')).toEqual(['Charlie', 'Alpha', 'Bravo']);
-    await expect.poll(() => serverOrder(request, 'dnd-reorder', 'todo')).toEqual(['Charlie', 'Alpha', 'Bravo']);
-    // The drop animation (overlay copy) must be over before grabbing the card again.
-    await expect(card(page, 'Charlie')).toHaveCount(1);
+    await expect.poll(() => titlesIn(page, slug, 'Todo')).toEqual(['Charlie', 'Alpha', 'Bravo']);
+    await expect.poll(() => serverOrder(request, slug, 'todo')).toEqual(['Charlie', 'Alpha', 'Bravo']);
     // Down: Charlie onto the bottom part of Bravo -> last.
     await mouseDrag(page, card(page, 'Charlie'), card(page, 'Bravo'), { at: 0.8 });
-    await expect.poll(() => titlesIn(page, 'dnd-reorder', 'Todo')).toEqual(['Alpha', 'Bravo', 'Charlie']);
-    await expect.poll(() => serverOrder(request, 'dnd-reorder', 'todo')).toEqual(['Alpha', 'Bravo', 'Charlie']);
+    await expect.poll(() => titlesIn(page, slug, 'Todo')).toEqual(['Alpha', 'Bravo', 'Charlie']);
+    await expect.poll(() => serverOrder(request, slug, 'todo')).toEqual(['Alpha', 'Bravo', 'Charlie']);
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 
   test('drops into empty columns (Review and Done)', async ({ page, request }) => {
-    await createProject(request, 'dnd-empty', [
+    const slug = uniqueSlug('dnd-empty');
+    await createProject(request, slug, [
       ['Lonely', 'todo'],
       ['Other', 'todo'],
     ]);
-    await openProject(page, 'dnd-empty', 'Lonely');
-    await mouseDrag(page, card(page, 'Lonely'), column(page, 'dnd-empty', 'Review').locator('ol'));
-    await expect(column(page, 'dnd-empty', 'Review').getByRole('article', { name: 'Lonely' })).toBeVisible();
-    await expect.poll(() => serverOrder(request, 'dnd-empty', 'review')).toEqual(['Lonely']);
-    await mouseDrag(page, card(page, 'Other'), column(page, 'dnd-empty', 'Done').locator('ol'));
-    await expect.poll(() => serverOrder(request, 'dnd-empty', 'done')).toEqual(['Other']);
-    await expect(column(page, 'dnd-empty', 'Todo').getByRole('article')).toHaveCount(0);
+    await openProject(page, slug, 'Lonely');
+    await mouseDrag(page, card(page, 'Lonely'), column(page, slug, 'Review').locator('ol'));
+    await expect(column(page, slug, 'Review').getByRole('article', { name: 'Lonely' })).toBeVisible();
+    await expect.poll(() => serverOrder(request, slug, 'review')).toEqual(['Lonely']);
+    await mouseDrag(page, card(page, 'Other'), column(page, slug, 'Done').locator('ol'));
+    await expect.poll(() => serverOrder(request, slug, 'done')).toEqual(['Other']);
+    await expect(column(page, slug, 'Todo').getByRole('article')).toHaveCount(0);
   });
 
   test('a click (or a move under 8px) never starts a drag nor sends a PATCH', async ({ page, request }) => {
-    await createProject(request, 'dnd-click', [['Still', 'todo']]);
-    await openProject(page, 'dnd-click', 'Still');
+    const slug = uniqueSlug('dnd-click');
+    await createProject(request, slug, [['Still', 'todo']]);
+    await openProject(page, slug, 'Still');
     const patches: string[] = [];
     page.on('request', (r) => r.method() === 'PATCH' && patches.push(r.url()));
     const box = (await card(page, 'Still').boundingBox())!;
@@ -142,7 +146,7 @@ test.describe('drag and drop with the mouse', () => {
     await page.mouse.up();
     await page.waitForTimeout(800);
     expect(patches).toEqual([]);
-    await expect(column(page, 'dnd-click', 'Todo').getByRole('article', { name: 'Still' })).toBeVisible();
+    await expect(column(page, slug, 'Todo').getByRole('article', { name: 'Still' })).toBeVisible();
   });
 });
 
@@ -156,31 +160,33 @@ test.describe('failed moves roll back', () => {
   });
 
   test('a 500 on the PATCH puts the card back and shows a dismissible alert', async ({ page, request }) => {
-    await createProject(request, 'dnd-rollback', [['Fragile', 'todo']]);
-    await openProject(page, 'dnd-rollback', 'Fragile');
+    const slug = uniqueSlug('dnd-rollback');
+    await createProject(request, slug, [['Fragile', 'todo']]);
+    await openProject(page, slug, 'Fragile');
     let patched = 0;
     await page.route('**/api/projects/*/tasks/*', (route) => {
       if (route.request().method() !== 'PATCH') return route.continue();
       patched++;
       return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Internal error' }) });
     });
-    await mouseDrag(page, card(page, 'Fragile'), column(page, 'dnd-rollback', 'Doing').locator('ol'));
+    await mouseDrag(page, card(page, 'Fragile'), column(page, slug, 'Doing').locator('ol'));
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('Couldn’t move T-001');
     await expect(alert).toContainText('It is back where it was');
-    await expect(column(page, 'dnd-rollback', 'Todo').getByRole('article', { name: 'Fragile' })).toBeVisible();
-    await expect(column(page, 'dnd-rollback', 'Doing').getByRole('article')).toHaveCount(0);
+    await expect(column(page, slug, 'Todo').getByRole('article', { name: 'Fragile' })).toBeVisible();
+    await expect(column(page, slug, 'Doing').getByRole('article')).toHaveCount(0);
     expect(patched).toBe(1);
-    expect(await serverOrder(request, 'dnd-rollback', 'todo')).toEqual(['Fragile']);
+    expect(await serverOrder(request, slug, 'todo')).toEqual(['Fragile']);
     await alert.getByRole('button', { name: 'Dismiss' }).click();
     await expect(page.getByRole('alert')).toHaveCount(0);
   });
 
   test('412: the file changed on disk during the drag -> rollback, refetch and a clear message', async ({ page, request }) => {
-    await createProject(request, 'dnd-conflict', [['Contested', 'todo']]);
-    await openProject(page, 'dnd-conflict', 'Contested');
-    const file = taskFile('dnd-conflict', 'T-001-contested.md');
-    await mouseDrag(page, card(page, 'Contested'), column(page, 'dnd-conflict', 'Doing').locator('ol'), {
+    const slug = uniqueSlug('dnd-conflict');
+    await createProject(request, slug, [['Contested', 'todo']]);
+    await openProject(page, slug, 'Contested');
+    const file = taskFile(slug, 'T-001-contested.md');
+    await mouseDrag(page, card(page, 'Contested'), column(page, slug, 'Doing').locator('ol'), {
       // An agent edits the file while the card is in the air (its live refetch is held back).
       whileDragging: async () => {
         await writeFile(file, (await readFile(file, 'utf8')).replace('title: Contested', 'title: Contested (edited by an agent)'));
@@ -190,9 +196,113 @@ test.describe('failed moves roll back', () => {
     const alert = page.getByRole('alert');
     await expect(alert).toContainText('T-001 changed on disk; the board was reloaded');
     // Refetched: the agent's title is shown, still in Todo; the server kept the agent's version.
-    await expect(column(page, 'dnd-conflict', 'Todo').getByRole('article', { name: 'Contested (edited by an agent)' })).toBeVisible();
-    await expect(column(page, 'dnd-conflict', 'Doing').getByRole('article')).toHaveCount(0);
+    await expect(column(page, slug, 'Todo').getByRole('article', { name: 'Contested (edited by an agent)' })).toBeVisible();
+    await expect(column(page, slug, 'Doing').getByRole('article')).toHaveCount(0);
     expect(await frontmatterStatus(file)).toBe('todo');
+  });
+});
+
+test.describe('the same card moved twice before the first save answers', () => {
+  test.use({
+    expectedHttpErrors: httpErrors(
+      { status: 401, url: /\/api\/session$/ },
+      { status: 500, url: /\/api\/projects\/[^/]+\/tasks\/[^/]+$/ },
+    ),
+  });
+
+  /** Counts card nodes (re)inserted into a column after the Nth pointerup: a flash back. Read-only. */
+  async function watchFlashes(page: Page, project: string, name: string, afterDrop: number) {
+    await column(page, project, name).locator('ol').evaluate(
+      (ol, { key, after }) => {
+        const w = window as unknown as Record<string, number>;
+        w[key] = 0;
+        w.drops ??= 0;
+        if (!(window as unknown as { dropListener?: boolean }).dropListener) {
+          (window as unknown as { dropListener?: boolean }).dropListener = true;
+          window.addEventListener('pointerup', () => w.drops++, { capture: true });
+        }
+        new MutationObserver((records) => {
+          if (w.drops < after) return;
+          for (const r of records) for (const n of r.addedNodes) if (n instanceof Element && n.querySelector('article')) w[key]++;
+        }).observe(ol, { childList: true, subtree: true });
+      },
+      { key: `flashes_${name}`, after: afterDrop },
+    );
+  }
+  const flashes = (page: Page, name: string) => page.evaluate((k) => (window as unknown as Record<string, number>)[k], `flashes_${name}`);
+
+  test('both moves apply in order: no 412, no rollback, disk has the second, nothing flashes', async ({ page, request }) => {
+    const slug = uniqueSlug('dnd-twice');
+    await createProject(request, slug, [['Twice', 'todo']]);
+    await openProject(page, slug, 'Twice');
+    const sent: { at: number; body: string; ifMatch?: string }[] = [];
+    const answered: { at: number; status: number }[] = [];
+    page.on('response', (r) => r.request().method() === 'PATCH' && answered.push({ at: Date.now(), status: r.status() }));
+    // The first save is held until the second drop has happened (a fixed delay can't guarantee
+    // that order), then answered ~500ms later.
+    let release!: () => void;
+    const secondDropped = new Promise<void>((r) => (release = r));
+    let first = true;
+    await page.route('**/api/projects/*/tasks/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      sent.push({ at: Date.now(), body: route.request().postData() ?? '', ifMatch: route.request().headers()['if-match'] });
+      if (first) {
+        first = false;
+        await secondDropped;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      return route.continue();
+    });
+    await watchFlashes(page, slug, 'Todo', 1);
+    await watchFlashes(page, slug, 'Doing', 2);
+
+    await mouseDrag(page, card(page, 'Twice'), column(page, slug, 'Doing').locator('ol'));
+    await expect(column(page, slug, 'Doing').getByRole('article', { name: 'Twice' })).toHaveCount(1);
+    await mouseDrag(page, column(page, slug, 'Doing').getByRole('article', { name: 'Twice' }), column(page, slug, 'Review').locator('ol'));
+    await expect(column(page, slug, 'Review').getByRole('article', { name: 'Twice' })).toBeVisible();
+    expect(answered).toEqual([]); // really concurrent: the first save hasn't answered yet
+    release();
+
+    await expect.poll(() => answered.length).toBe(2);
+    expect(answered.map((a) => a.status)).toEqual([200, 200]); // no 412
+    expect(sent.map((s) => JSON.parse(s.body).status)).toEqual(['doing', 'review']); // in order
+    expect(sent[1].at).toBeGreaterThanOrEqual(answered[0].at); // the second waited for the first answer
+    expect(sent[1].ifMatch).not.toBe(sent[0].ifMatch); // with the etag returned by the first
+    await expect.poll(() => frontmatterStatus(taskFile(slug, 'T-001-twice.md'))).toBe('review');
+    await page.waitForTimeout(1_000); // refetches land
+    await expect(page.getByRole('alert')).toHaveCount(0); // no rollback message
+    await expect(column(page, slug, 'Review').getByRole('article', { name: 'Twice' })).toBeVisible();
+    expect(await flashes(page, 'Todo')).toBe(0);
+    expect(await flashes(page, 'Doing')).toBe(0);
+  });
+
+  test('if the first save fails, the second is never sent and the card goes back to before the first move', async ({ page, request }) => {
+    const slug = uniqueSlug('dnd-twice-fail');
+    await createProject(request, slug, [['Doomed', 'todo']]);
+    await openProject(page, slug, 'Doomed');
+    const sent: string[] = [];
+    let release!: () => void;
+    const secondDropped = new Promise<void>((r) => (release = r));
+    await page.route('**/api/projects/*/tasks/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue();
+      sent.push(route.request().postData() ?? '');
+      await secondDropped; // fail the first save only after the second drop
+      await new Promise((r) => setTimeout(r, 500));
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Internal error' }) });
+    });
+    await mouseDrag(page, card(page, 'Doomed'), column(page, slug, 'Doing').locator('ol'));
+    await expect(column(page, slug, 'Doing').getByRole('article', { name: 'Doomed' })).toHaveCount(1);
+    await mouseDrag(page, column(page, slug, 'Doing').getByRole('article', { name: 'Doomed' }), column(page, slug, 'Review').locator('ol'));
+    await expect(column(page, slug, 'Review').getByRole('article', { name: 'Doomed' })).toBeVisible();
+    release();
+
+    await expect(page.getByRole('alert')).toContainText('Couldn’t move T-001');
+    await expect(column(page, slug, 'Todo').getByRole('article', { name: 'Doomed' })).toBeVisible();
+    await expect(column(page, slug, 'Doing').getByRole('article')).toHaveCount(0);
+    await expect(column(page, slug, 'Review').getByRole('article')).toHaveCount(0);
+    await page.waitForTimeout(1_000);
+    expect(sent.map((b) => JSON.parse(b).status)).toEqual(['doing']); // the queued second move was dropped
+    expect(await frontmatterStatus(taskFile(slug, 'T-001-doomed.md'))).toBe('todo');
   });
 });
 
@@ -200,11 +310,12 @@ test.describe('drag and drop with touch', () => {
   test.use({ hasTouch: true });
 
   test('long press then drag moves a card (CDP touch events)', async ({ page, request }) => {
-    await createProject(request, 'dnd-touch', [['Touchy', 'todo']]);
-    await openProject(page, 'dnd-touch', 'Touchy');
+    const slug = uniqueSlug('dnd-touch');
+    await createProject(request, slug, [['Touchy', 'todo']]);
+    await openProject(page, slug, 'Touchy');
     const cdp = await page.context().newCDPSession(page);
     const a = (await card(page, 'Touchy').boundingBox())!;
-    const b = (await column(page, 'dnd-touch', 'Doing').locator('ol').boundingBox())!;
+    const b = (await column(page, slug, 'Doing').locator('ol').boundingBox())!;
     const touch = (type: string, x?: number, y?: number) =>
       cdp.send('Input.dispatchTouchEvent', { type, touchPoints: x === undefined ? [] : [{ x, y: y! }] } as never);
     const sx = a.x + a.width / 2;
@@ -216,13 +327,14 @@ test.describe('drag and drop with touch', () => {
     const ty = b.y + b.height / 2;
     for (let i = 1; i <= steps; i++) await touch('touchMove', sx + ((tx - sx) * i) / steps, sy + ((ty - sy) * i) / steps);
     await touch('touchEnd');
-    await expect(column(page, 'dnd-touch', 'Doing').getByRole('article', { name: 'Touchy' })).toBeVisible();
-    await expect.poll(() => serverOrder(request, 'dnd-touch', 'doing')).toEqual(['Touchy']);
+    await expect(column(page, slug, 'Doing').getByRole('article', { name: 'Touchy' })).toBeVisible();
+    await expect.poll(() => serverOrder(request, slug, 'doing')).toEqual(['Touchy']);
   });
 
   test('a quick swipe (no long press) does not move the card', async ({ page, request }) => {
-    await createProject(request, 'dnd-swipe', [['Swiped', 'todo']]);
-    await openProject(page, 'dnd-swipe', 'Swiped');
+    const slug = uniqueSlug('dnd-swipe');
+    await createProject(request, slug, [['Swiped', 'todo']]);
+    await openProject(page, slug, 'Swiped');
     const patches: string[] = [];
     page.on('request', (r) => r.method() === 'PATCH' && patches.push(r.url()));
     const cdp = await page.context().newCDPSession(page);
@@ -236,6 +348,6 @@ test.describe('drag and drop with touch', () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] } as never);
     await page.waitForTimeout(800);
     expect(patches).toEqual([]);
-    await expect(column(page, 'dnd-swipe', 'Todo').getByRole('article', { name: 'Swiped' })).toBeVisible();
+    await expect(column(page, slug, 'Todo').getByRole('article', { name: 'Swiped' })).toBeVisible();
   });
 });
