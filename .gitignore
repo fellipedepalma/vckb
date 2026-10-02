@@ -20,3 +20,6 @@ boards/*
 .vckb.lock.breaking/
 
 .review-shots/
+
+# Local demo (npm run demo / VCKB-demo.bat)
+.demo/

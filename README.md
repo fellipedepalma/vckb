@@ -27,6 +27,16 @@ Markdown** that any agent can read and update, and that you can review in a boar
 - **Live.** The server watches the files and pushes changes to the UI, so edits made by agents
   directly on disk show up immediately.
 
+## Try it with one command
+
+After `npm ci`: `npm run demo` (Windows: double-click `VCKB-demo.bat`, which installs the
+dependencies on first use). It builds VCKB, starts it on http://127.0.0.1:8787 (or the next free
+port) with a copy of the example board, prints a token and opens the browser; paste the token to
+sign in. The token is disposable and local: it is created for the demo, stored in `.demo/token`, and
+only works for this demo on 127.0.0.1. Your changes stay in `.demo/boards` between runs
+(`npm run demo -- --reset` starts over); the log is `.demo/server.log`. Close the window or press
+Ctrl+C to stop.
+
 ## Quick start (local)
 
 Requires Node.js **22.12+**.

@@ -10,3 +10,4 @@ playwright-report
 test-results
 e2e
 tests
+.demo

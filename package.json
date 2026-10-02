@@ -43,7 +43,8 @@
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
     "audit": "npm audit --omit=dev",
-    "vckb": "node bin/vckb.js"
+    "vckb": "node bin/vckb.js",
+    "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",

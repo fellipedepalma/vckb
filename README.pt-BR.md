@@ -27,6 +27,16 @@ em Markdown puro** que qualquer agente lê e atualiza, que você revisa num boar
 - **Tempo real.** O servidor observa os arquivos e avisa a UI, então edições feitas por agentes
   direto no disco aparecem na hora.
 
+## Experimente com um comando
+
+Depois do `npm ci`: `npm run demo` (Windows: dois cliques em `VCKB-demo.bat`, que instala as
+dependências no primeiro uso). Ele compila o VCKB, sobe em http://127.0.0.1:8787 (ou na próxima
+porta livre) com uma cópia do board de exemplo, mostra um token e abre o navegador; cole o token para
+entrar. O token é descartável e local: criado para a demo, guardado em `.demo/token` e válido só para
+esta demo em 127.0.0.1. Suas alterações ficam em `.demo/boards` entre execuções
+(`npm run demo -- --reset` recomeça); o log é `.demo/server.log`. Feche a janela ou aperte Ctrl+C
+para parar.
+
 ## Início rápido (local)
 
 Requer Node.js **22.12+**.

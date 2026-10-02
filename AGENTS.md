@@ -49,6 +49,7 @@ When a test fails or something behaves unexpectedly, find the root cause
 | Production | `npm start` |
 | CLI | `npm run vckb -- <command>` or `vckb <command>` after `npm link` |
 | Docker | `docker compose up --build` |
+| Local demo for the maintainer | `npm run demo` / `VCKB-demo.bat` (never leave a demo running in the background yourself) |
 
 ## Layout
 

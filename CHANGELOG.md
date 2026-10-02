@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `npm run demo` (Windows: double-click `VCKB-demo.bat`): builds VCKB, runs a frozen copy of the
+  build on 127.0.0.1:8787 (or the next free port) with a copy of the example board in `.demo/`, a
+  disposable token reused between runs, a timestamped `.demo/server.log`, and opens the browser.
+  `--reset` recreates the board, `--no-open` skips the browser; if the server stops, the error and
+  the end of the log stay on screen.
 - Web UI: drag and drop cards between columns (empty ones and Done included) and within a column,
   with the mouse or pen (starts after moving 8px, so a click never moves a card) or touch (long
   press, so swiping still scrolls the board). The card moves at once and is saved with
