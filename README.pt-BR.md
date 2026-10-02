@@ -97,6 +97,13 @@ docker compose up --build
   capabilities e com `no-new-privileges`. No Linux, o diretório de boards precisa pertencer a esse
   usuário: defina `VCKB_UID=$(id -u)` e `VCKB_GID=$(id -g)` no `.env` para usar o seu.
 
+## Teclado
+
+Cada card é uma parada de Tab. Para mover um card sem mouse: **Tab** até ele, **Espaço** pega o card,
+**Esquerda/Direita** trocam a coluna (inclusive colunas vazias), **Cima/Baixo** trocam a posição,
+**Espaço** solta e **Esc** cancela. Cada passo é anunciado para leitores de tela, e o foco continua
+no card. **Enter** fica reservado para abrir os detalhes do card (próxima etapa).
+
 ## CLI
 
 ```
@@ -143,6 +150,9 @@ não permitido) ou 429 (tentativas demais; veja `Retry-After`). **409** também 
 de tarefa o trazem no header `ETag`. Devolva-o como `If-Match: "<etag>"` em `PATCH`, `DELETE` ou
 `notes`: se o arquivo mudou no disco desde a leitura (um agente o editou, por exemplo), a resposta é
 **412** e nada é gravado. Sem `If-Match`, a escrita segue normalmente (clientes tipo CLI).
+Mover um card renumera os outros cards da coluna, o que muda os arquivos deles: a resposta do
+`PATCH` os lista em `VCKB-Renumbered: <arquivo url-encoded>="<etag>", ...`, para que um cliente que
+move vários cards seguidos envie o `If-Match` certo em seguida.
 
 `warnings` no `/summary` (e no `vckb list --json`) é uma lista de
 `{ code, message, file?, files?, id?, column?, fields? }`, com `code` entre `invalid_file`,

@@ -75,6 +75,19 @@ export const strings = {
     hasWarnings: 'This task has problems in its file',
   },
 
+  /** Keyboard drag and drop: card semantics and what the screen reader hears. */
+  dnd: {
+    roleDescription: 'draggable card',
+    instructions:
+      'To move this card, press Space to pick it up. Use the left and right arrow keys to change the column and the up and down arrow keys to change its position. Press Space again to drop it, or Escape to cancel.',
+    pickedUp: (id: string, title: string, column: string, position: number, total: number) =>
+      `Picked up ${id}, ${title}, from ${column}, position ${position} of ${total}.`,
+    moved: (id: string, column: string, position: number, total: number) => `${id} moved to ${column}, position ${position} of ${total}.`,
+    dropped: (id: string, column: string, position: number, total: number) => `Dropped ${id} in ${column}, position ${position} of ${total}.`,
+    cancelled: (id: string, column: string) => `Move cancelled. ${id} returned to ${column}.`,
+    saveFailed: (id: string, column: string) => `${id} could not be saved and was put back in ${column}.`,
+  },
+
   move: {
     failed: (id: string, reason: string) => `Couldn’t move ${id} (${reason}). It is back where it was.`,
     conflict: (id: string) => `${id} changed on disk; the board was reloaded. Move it again if you still want to.`,

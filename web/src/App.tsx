@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, onUnauthorized, paths } from './api';
 import { applyMove } from './board-move';
-import { Board } from './components/Board';
+import { announceInDndRegion, Board, focusCard } from './components/Board';
 import { Login } from './components/Login';
 import { BoardSkeleton, describeError, DismissibleAlert, ErrorPanel, Notice } from './components/States';
 import { TopBar } from './components/TopBar';
@@ -148,6 +148,10 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
         setPending(null);
         etags.current.clear();
         queue.current = Promise.resolve(true); // moves made after this failure are sent normally
+        // Also for screen readers (dnd-kit's live region), and focus back on the card it rolled back.
+        const saved = board.data?.tasks.find((t) => t.file === file)?.status ?? task.status;
+        announceInDndRegion(strings.dnd.saveFailed(task.id, strings.board.columnName(saved)));
+        focusCard(file);
         void reloadBoard();
         return false;
       }

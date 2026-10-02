@@ -96,6 +96,13 @@ docker compose up --build
   capabilities and `no-new-privileges`. On Linux the boards directory must be writable by that
   user: set `VCKB_UID=$(id -u)` and `VCKB_GID=$(id -g)` in `.env` to run as yourself.
 
+## Keyboard
+
+Every card is one Tab stop. To move a card without a mouse: **Tab** to it, **Space** picks it up,
+**Left/Right** change the column (empty columns included), **Up/Down** change its position,
+**Space** drops it and **Escape** cancels. Each step is announced to screen readers, and focus stays
+on the card. **Enter** is reserved for opening the card's details (coming next).
+
 ## CLI
 
 ```
@@ -151,6 +158,9 @@ file: `PATCH`, `DELETE` and `notes` on that ID are refused until you run `vckb d
 responses carry it in the `ETag` header. Send it back as `If-Match: "<etag>"` on `PATCH`, `DELETE`
 or `notes`: if the file changed on disk since you read it (an agent edited it, say), the answer is
 **412** and nothing is written. Without `If-Match` the write proceeds (CLI-style clients).
+A move renumbers the other cards of its column, which changes their files: the `PATCH` response
+lists them in `VCKB-Renumbered: <url-encoded file>="<etag>", ...` so a client moving several cards in
+a row can send the right `If-Match` next.
 
 `warnings` in `/summary` (and in `vckb list --json`) is a list of
 `{ code, message, file?, files?, id?, column?, fields? }`, with `code` one of `invalid_file`,

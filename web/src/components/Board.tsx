@@ -1,10 +1,13 @@
 import {
+  type Announcements,
   closestCorners,
   DndContext,
   type DragEndEvent,
   type DragOverEvent,
   DragOverlay,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
+  KeyboardSensor,
   PointerSensor,
   type PointerSensorOptions,
   TouchSensor,
@@ -15,8 +18,10 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type PointerEvent as ReactPointerEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { DONE_COLUMN, filesWithWarnings, groupByColumn, REVIEW_COLUMN } from '../board-model';
+import { isArrowKey, keyboardMove, locate } from '../keyboard-move';
 import { strings } from '../strings';
 import type { BoardSnapshot, BoardWarning, Task } from '../types';
 
@@ -54,7 +59,23 @@ function ProgressCheck({ done, total, className }: { done: number; total: number
 }
 
 /** `overlay`: the copy that follows the pointer while dragging (mint border, slight elevation). */
-export function TaskCard({ task, warned, quiet = false, overlay = false }: { task: Task; warned: boolean; quiet?: boolean; overlay?: boolean }) {
+export function TaskCard({
+  task,
+  warned,
+  quiet = false,
+  overlay = false,
+  describedBy,
+  articleRef,
+}: {
+  task: Task;
+  warned: boolean;
+  quiet?: boolean;
+  overlay?: boolean;
+  /** id of dnd-kit's hidden keyboard instructions. */
+  describedBy?: string;
+  /** dnd-kit activator: the element whose Space key picks the card up. */
+  articleRef?: (el: HTMLElement | null) => void;
+}) {
   const titleId = useId();
   
   const bgClass = quiet ? 'bg-done-surface' : 'bg-surface hover:bg-surface-2 focus-within:bg-surface-2';
@@ -70,7 +91,11 @@ export function TaskCard({ task, warned, quiet = false, overlay = false }: { tas
 
   return (
     <article
+      ref={articleRef}
+      data-card-file={task.file}
       aria-labelledby={titleId}
+      aria-roledescription={overlay ? undefined : strings.dnd.roleDescription}
+      aria-describedby={overlay ? undefined : describedBy}
       tabIndex={overlay ? -1 : 0}
       className={`rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
     >
@@ -132,14 +157,19 @@ const COLUMN_ID = 'col:';
 const columnId = (name: string) => `${COLUMN_ID}${name}`;
 
 /**
- * A draggable card. Only the pointer/touch listeners are attached (no dnd-kit `attributes`):
- * keyboard semantics for moving cards come in a later step.
+ * A draggable card. The <article> stays the only focusable element (one Tab stop per card).
+ * From dnd-kit's `attributes` only aria-describedby is used (its hidden instructions); role="button",
+ * tabIndex, aria-pressed/aria-disabled and its "sortable" role description are left out: the card
+ * keeps its own semantics, and the role description comes from strings.ts.
+ * The `listeners` (pointer, touch and the Space key) sit on the <li>; keydown bubbles up to it from
+ * the article, which is registered as the activator.
  */
 function SortableCard({ task, warned, quiet }: { task: Task; warned: boolean; quiet: boolean }) {
-  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({ id: task.file });
+  const { setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({ id: task.file });
   return (
     <li
       ref={setNodeRef}
+      data-sortable-file={task.file}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className="touch-manipulation"
       {...listeners}
@@ -152,7 +182,7 @@ function SortableCard({ task, warned, quiet }: { task: Task; warned: boolean; qu
           </div>
         </div>
       ) : (
-        <TaskCard task={task} warned={warned} quiet={quiet} />
+        <TaskCard task={task} warned={warned} quiet={quiet} describedBy={attributes['aria-describedby']} articleRef={setActivatorNodeRef} />
       )}
     </li>
   );
@@ -253,6 +283,34 @@ export function WarningsBanner({ slug, warnings }: { slug: string; warnings: Boa
 
 type Items = Record<string, string[]>;
 
+/**
+ * Puts focus back on a card after a keyboard drop, cancel or rollback (cards remount when they
+ * change column, so the focused element is gone). Only when focus was lost (body) or is still on
+ * the board, so it never steals focus from somewhere else.
+ */
+export function focusCard(file: string) {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`article[data-card-file="${window.CSS.escape(file)}"][tabindex="0"]`);
+      const current = document.activeElement;
+      const lost = !current || current === document.body || !!current.closest('[data-board]');
+      if (card && lost && current !== card) card.focus();
+    }),
+  );
+}
+
+/**
+ * Says `text` through dnd-kit's own live region (role="status"), for events dnd-kit doesn't know
+ * about, such as a save that failed after the drop. No second live region is created; dnd-kit
+ * replaces the text with its next announcement.
+ */
+export function announceInDndRegion(text: string) {
+  const region = document.querySelector<HTMLElement>('[id^="DndLiveRegion-"][role="status"]');
+  if (region) region.textContent = text;
+}
+
+const columnLabel = (name: string) => strings.board.columnName(name);
+
 export interface BoardProps {
   snapshot: BoardSnapshot;
   /** Persist a move: `position` is the index in `status` without the moved card (0 = top). */
@@ -280,11 +338,81 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     if (!active) setItems(derived);
   }, [derived, active]);
 
+  // Refs read by dnd-kit callbacks (keyboard coordinates, announcements), always current.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const byFileRef = useRef(byFile);
+  byFileRef.current = byFile;
+  const columns = project.columns;
+  const keyboard = useRef(false);
+  const lastOrigin = useRef<{ column: string } | null>(null);
+  const lastDrop = useRef<{ column: string; index: number; total: number } | null>(null);
+
+  /**
+   * Arrow keys while a card is picked up: the move is decided by keyboardMove() (pure), applied to the
+   * board at once, and the dragged copy is placed exactly over the card's new slot, scrolled into view.
+   */
+  const coordinateGetter = useCallback<KeyboardCoordinateGetter>(
+    (event, { active: id }) => {
+      if (!isArrowKey(event.code)) return undefined;
+      event.preventDefault();
+      const file = String(id);
+      const next = keyboardMove(columns, itemsRef.current, file, event.code);
+      if (!next) return undefined; // against an edge: nothing happens
+      itemsRef.current = next;
+      flushSync(() => {
+        setItems(next);
+        setOverColumn(locate(columns, next, file)?.column ?? null);
+      });
+      const slot = document.querySelector<HTMLElement>(`li[data-sortable-file="${window.CSS.escape(file)}"]`);
+      if (!slot) return undefined;
+      slot.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const rect = slot.getBoundingClientRect();
+      return { x: rect.left, y: rect.top };
+    },
+    [columns],
+  );
+
   const sensors = useSensors(
     useSensor(MousePenSensor, { activationConstraint: { distance: 8 } }),
     // Touch: long press, so swiping still scrolls the board sideways.
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    // Keyboard: Space picks up and drops, arrows move, Escape cancels. Enter is kept for opening a card.
+    useSensor(KeyboardSensor, {
+      keyboardCodes: { start: ['Space'], end: ['Space'], cancel: ['Escape'] },
+      coordinateGetter,
+    }),
   );
+
+  const announcements = useMemo<Announcements>(() => {
+    const describe = (file: string) => {
+      const task = byFileRef.current.get(file);
+      const at = locate(columns, itemsRef.current, file);
+      return task && at ? { task, at } : null;
+    };
+    return {
+      onDragStart: ({ active: a }) => {
+        const d = describe(String(a.id));
+        return d ? strings.dnd.pickedUp(d.task.id, d.task.title, columnLabel(d.at.column), d.at.index + 1, d.at.total) : undefined;
+      },
+      // Keyboard steps only (a pointer drag would announce on every pixel).
+      onDragMove: ({ active: a }) => {
+        if (!keyboard.current) return undefined;
+        const d = describe(String(a.id));
+        return d ? strings.dnd.moved(d.task.id, columnLabel(d.at.column), d.at.index + 1, d.at.total) : undefined;
+      },
+      onDragOver: () => undefined,
+      onDragEnd: ({ active: a }) => {
+        const task = byFileRef.current.get(String(a.id));
+        const drop = lastDrop.current;
+        return task && drop ? strings.dnd.dropped(task.id, columnLabel(drop.column), drop.index + 1, drop.total) : undefined;
+      },
+      onDragCancel: ({ active: a }) => {
+        const task = byFileRef.current.get(String(a.id));
+        return task && lastOrigin.current ? strings.dnd.cancelled(task.id, columnLabel(lastOrigin.current.column)) : undefined;
+      },
+    };
+  }, [columns]);
 
   const containerOf = (id: UniqueIdentifier, from: Items = items): string | null => {
     const key = String(id);
@@ -299,10 +427,13 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     onDragStateChange?.(false);
   };
 
-  const onDragStart = ({ active: a }: DragStartEvent) => {
+  const onDragStart = ({ active: a, activatorEvent }: DragStartEvent) => {
     const file = String(a.id);
     const column = containerOf(file);
     if (!column) return;
+    keyboard.current = activatorEvent instanceof KeyboardEvent;
+    lastOrigin.current = { column };
+    lastDrop.current = null;
     start.current = { items, column, index: items[column].indexOf(file) };
     setActive(file);
     setOverColumn(column);
@@ -310,6 +441,7 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   };
 
   const onDragOver = ({ active: a, over }: DragOverEvent) => {
+    if (keyboard.current) return; // keyboard moves are applied by the coordinate getter
     if (!over) return;
     const from = containerOf(a.id);
     const to = containerOf(over.id);
@@ -335,6 +467,19 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   const onDragEnd = ({ active: a, over }: DragEndEvent) => {
     const origin = start.current;
     const file = String(a.id);
+    if (keyboard.current) {
+      // The card already sits where the arrows put it.
+      const at = locate(columns, itemsRef.current, file);
+      if (origin && at) {
+        lastDrop.current = at;
+        if (!(at.column === origin.column && at.index === origin.index)) onMove?.(file, at.column, at.index);
+      } else if (origin) {
+        setItems(origin.items);
+      }
+      end();
+      focusCard(file);
+      return;
+    }
     const to = over ? containerOf(over.id) : null;
     if (!origin || !to) {
       if (origin) setItems(origin.items);
@@ -346,15 +491,18 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     const overIndex = String(over!.id).startsWith(COLUMN_ID) ? from : list.indexOf(String(over!.id));
     if (from >= 0 && overIndex >= 0 && from !== overIndex) list = arrayMove(list, from, overIndex);
     const position = list.indexOf(file);
+    lastDrop.current = { column: to, index: position, total: list.length };
     setItems({ ...items, [to]: list });
     // onMove updates the snapshot in the same batch as end(), so nothing flashes back.
     if (position >= 0 && !(to === origin.column && position === origin.index)) onMove?.(file, to, position);
     end();
   };
 
-  const onDragCancel = () => {
+  const onDragCancel = ({ active: a }: { active: { id: UniqueIdentifier } }) => {
     if (start.current) setItems(start.current.items);
+    const wasKeyboard = keyboard.current;
     end();
+    if (wasKeyboard) focusCard(String(a.id));
   };
 
   const activeTask = active ? byFile.get(active) : undefined;
@@ -389,9 +537,11 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
         className="grid min-h-0 flex-1 grid-flow-col auto-cols-[minmax(250px,1fr)] snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 pt-3 sm:snap-none sm:px-6"
         role="region"
         aria-label={project.name}
+        data-board
       >
         <DndContext
           sensors={sensors}
+          accessibility={{ announcements, screenReaderInstructions: { draggable: strings.dnd.instructions } }}
           collisionDetection={closestCorners}
           onDragStart={onDragStart}
           onDragOver={onDragOver}
