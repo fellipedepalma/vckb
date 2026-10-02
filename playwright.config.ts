@@ -24,7 +24,8 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // In CI, failures also become GitHub annotations (readable without downloading logs or artifacts).
+  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'list',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   globalTeardown: './e2e/teardown.ts',
