@@ -14,6 +14,9 @@ All notable changes to this project are documented here. The format follows
   `PATCH { status, position }` plus `If-Match`; any failure puts it back and explains why, and if the
   file changed on disk meanwhile (412) the board is reloaded. Live updates wait until the drop.
   Keyboard moves come later.
+- Moving the same card again before its previous move was saved no longer fails with "changed on
+  disk": saves of a card are queued and each one uses the version returned by the previous save. If
+  a save fails, the queued moves are dropped and the card returns to where it was before them.
 - **Web UI** (first stage), served by the same server at `/` (`npm run build && npm start`): sign-in
   with the token (clear messages for a wrong token, 429 with a countdown and 421 with the
   `VCKB_ALLOWED_HOSTS` hint), sign-out, project tabs, a read-only board with every column and its

@@ -104,13 +104,21 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
   }, [live, refreshBoardLive, refreshProjects]);
 
   // Moves are optimistic: `pending` is shown at once and kept until the server's state (refetched
-  // after the PATCH) replaces it, so nothing flashes. Any failure rolls back to the server's state.
+  // after the last save) replaces it, so nothing flashes. Any failure rolls back to the server's state.
+  //
+  // Saves of the same card are queued: each PATCH waits for the previous one and sends the etag that
+  // the previous response returned (otherwise the second If-Match would be stale and get a 412). If a
+  // save fails, the queued ones for that card are dropped and the card returns to its last saved state.
   const [pending, setPending] = useState<BoardSnapshot | null>(null);
   const [moveNotice, setMoveNotice] = useState<string | null>(null);
-  const moveSeq = useRef(0);
+  const queues = useRef(new Map<string, Promise<boolean>>());
+  const etags = useRef(new Map<string, string>());
+  const inFlight = useRef(0);
   useEffect(() => {
     setPending(null);
     setMoveNotice(null);
+    queues.current.clear();
+    etags.current.clear();
   }, [slug]);
 
   const onMove = async (file: string, status: string, position: number) => {
@@ -119,20 +127,38 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     if (!base || !task || !slug) return;
     const next = applyMove(base.tasks, file, status, position);
     if (!next) return;
-    const mine = ++moveSeq.current;
     setMoveNotice(null);
     setPending({ ...base, tasks: next });
-    try {
-      await api.patch(paths.task(slug, task.id), { status, position }, { ifMatch: task.etag });
-      await reloadBoard();
-    } catch (err) {
-      const conflict = err instanceof ApiError && err.status === 412;
-      setMoveNotice(conflict ? strings.move.conflict(task.id) : strings.move.failed(task.id, describeError(err)));
-      if (mine === moveSeq.current) setPending(null);
-      if (conflict) await reloadBoard();
-      return;
+    inFlight.current++;
+
+    const previous = queues.current.get(file) ?? Promise.resolve(true);
+    const save = previous.then(async (previousOk) => {
+      if (!previousOk) return false; // an earlier move of this card failed and was rolled back
+      try {
+        const res = await api.patch(paths.task(slug, task.id), { status, position }, { ifMatch: etags.current.get(file) ?? task.etag });
+        if (res.etag) {
+          etags.current.set(file, res.etag);
+          const etag = res.etag;
+          setPending((p) => p && { ...p, tasks: p.tasks.map((t) => (t.file === file ? { ...t, etag } : t)) });
+        }
+        return true;
+      } catch (err) {
+        const conflict = err instanceof ApiError && err.status === 412;
+        setMoveNotice(conflict ? strings.move.conflict(task.id) : strings.move.failed(task.id, describeError(err)));
+        setPending(null);
+        void reloadBoard();
+        return false;
+      }
+    });
+    queues.current.set(file, save);
+    const ok = await save;
+    if (queues.current.get(file) === save) {
+      queues.current.delete(file);
+      etags.current.delete(file);
     }
-    if (mine === moveSeq.current) setPending(null);
+    if (--inFlight.current > 0) return;
+    if (ok) await reloadBoard();
+    if (inFlight.current === 0) setPending(null);
   };
   const shown = pending ?? board.data;
 
