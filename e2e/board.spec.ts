@@ -1,6 +1,6 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import type { Locator, Page } from '@playwright/test';
-import { expect, httpErrors, signIn, taskFile, test } from './fixtures.js';
+import { expect, httpErrors, openExample, signIn, taskFile, test, TOKEN } from './fixtures.js';
 
 /**
  * The accent color as the browser computes it, derived from the --color-accent token (never
@@ -21,7 +21,7 @@ async function accentColor(page: Page): Promise<string> {
 }
 
 /** Moves focus with Tab (keyboard modality, so :focus-visible applies) until `target` has it. */
-async function tabTo(page: Page, target: Locator, key: 'Tab' | 'Shift+Tab' = 'Tab', max = 40) {
+async function tabTo(page: Page, target: Locator, key: 'Tab' | 'Shift+Tab' = 'Tab', max = 300) {
   for (let i = 0; i < max; i++) {
     await page.keyboard.press(key);
     if (await target.evaluate((el) => el === document.activeElement)) break;
@@ -60,7 +60,7 @@ test.describe('serving', () => {
 test.describe('sign-in', () => {
   test.use({ expectedHttpErrors: httpErrors({ status: 401, url: /\/api\/session$/ }) });
 
-  test('a wrong token shows a clear error; the right one opens the board', async ({ page }) => {
+  test('a wrong token shows a clear error; the right one opens the board', async ({ page, request }) => {
     await expect(page.getByRole('alert')).toHaveCount(0);
     await signIn(page, 'definitely-not-the-token');
     await expect(page.getByRole('alert')).toHaveCount(1);
@@ -68,11 +68,13 @@ test.describe('sign-in', () => {
     await page.getByLabel('Access token').fill(process.env.E2E_TOKEN!);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.getByRole('heading', { name: /Review/ })).toBeVisible();
-    await expect(page).toHaveURL(/\/p\/example$/);
+    // The default route opens the first project by name (other tests may have created some).
+    const projects = (await (await request.get('/api/projects', { headers: { Authorization: `Bearer ${TOKEN()}` } })).json()) as { slug: string }[];
+    await expect(page).toHaveURL(new RegExp(`/p/${projects[0].slug}$`));
   });
 
   test('the token is never stored in the browser', async ({ page, context }) => {
-    await signIn(page);
+    await openExample(page);
     await expect(page.getByRole('heading', { name: /Review/ })).toBeVisible();
     const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie);
     expect(stored).not.toContain(process.env.E2E_TOKEN!);
@@ -104,7 +106,7 @@ test.describe('sign-in', () => {
 
 test.describe('board', () => {
   test('shows every column with its tasks, and the review column asks for approval', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     for (const [column, title] of [
       ['Backlog', 'Dark mode'],
       ['Todo', 'Sync list with API'],
@@ -125,7 +127,7 @@ test.describe('board', () => {
   });
 
   test('an agent editing a file on disk shows up without reloading (SSE)', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     // Board loaded and stream live before touching the file, so only SSE can explain the update.
     await expect(page.getByRole('heading', { name: 'Sync list with API', exact: true })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
@@ -138,7 +140,7 @@ test.describe('board', () => {
   });
 
   test('a hand-edited broken file shows the warnings banner with the doctor command', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
     const file = taskFile('example', 'T-099-by-hand.md');
@@ -151,7 +153,7 @@ test.describe('board', () => {
     await expect(page.getByText(/This board has/)).toBeHidden();
   });
   test('columns divide the available width and fill the container on wide screens', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     for (const width of [1440, 1920]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
@@ -182,7 +184,7 @@ test.describe('board', () => {
   });
 
   test('card receives visible focus ring when navigating with Tab', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
     const accent = await accentColor(page);
     const card = page.getByRole('article', { name: 'Dark mode' });
@@ -204,6 +206,8 @@ test.describe('board', () => {
 
     await token.fill(process.env.E2E_TOKEN!);
     await signInButton.click();
+    await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
+    await page.goto('/p/example');
     await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
 
@@ -232,7 +236,7 @@ test.describe('board', () => {
 
 test.describe('sign-out', () => {
   test('returns to the sign-in screen and the session is gone after a reload', async ({ page }) => {
-    await signIn(page);
+    await openExample(page);
     await expect(page.getByRole('heading', { name: /Review/ })).toBeVisible();
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page.getByLabel('Access token')).toBeVisible();

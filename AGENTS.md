@@ -44,6 +44,8 @@ When a test fails or something behaves unexpectedly, find the root cause
 | Tests | `npm test` |
 | Typecheck | `npm run typecheck` (server and web) |
 | E2E | `npm run test:e2e` (builds first; `npx playwright install chromium` once) |
+| Slow-CI simulation | `VCKB_E2E_CPU_THROTTLE=4 npx playwright test --retries=0` (CPU 4x slower via CDP) |
+| E2E stress | `npm run test:e2e:stress` (e2e/stress, long loops); in CI: "E2E stress" workflow, manual |
 | Dependency audit | `npm run audit` |
 | Build | `npm run build` |
 | Production | `npm start` |

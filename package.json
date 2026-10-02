@@ -44,7 +44,8 @@
     "test:e2e": "npm run build && playwright test",
     "audit": "npm audit --omit=dev",
     "vckb": "node bin/vckb.js",
-    "demo": "node scripts/demo.mjs"
+    "demo": "node scripts/demo.mjs",
+    "test:e2e:stress": "npm run build && playwright test --config playwright.stress.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",

@@ -78,7 +78,10 @@ test.describe('keyboard drag and drop', () => {
       await expect(card(page, 'Sync list with API')).toBeVisible();
       await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
       const target = card(page, 'Sync list with API');
-      for (let i = 0; i < 120 && !(await target.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+      // Tab from the last control before the board: every project in the top bar is a Tab stop, and
+      // other tests keep creating projects, so starting at the top made the count unbounded.
+      await page.getByRole('button', { name: 'Sign out' }).focus();
+      for (let i = 0; i < 20 && !(await target.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Tab');
       await expect(target).toBeFocused();
       await pickUp(page);
       await page.keyboard.press('ArrowRight');

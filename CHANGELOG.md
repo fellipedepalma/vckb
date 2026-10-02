@@ -8,6 +8,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Testing: `VCKB_E2E_CPU_THROTTLE` slows the browser CPU in e2e tests to simulate a slow CI;
+  `npm run test:e2e:stress` runs long keyboard loops; a manual "E2E stress" workflow repeats the
+  e2e suite N times; CI uploads the Playwright report on failure and posts failures as annotations.
 - Web UI: move cards with the keyboard. Tab to a card, Space picks it up, arrows move it (left/right
   between columns, empty ones included; up/down within the column), Space drops, Escape cancels.
   Screen readers hear each step (picked up, moved, dropped, cancelled, and a failed save) through

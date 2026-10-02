@@ -39,6 +39,12 @@ export const test = base.extend<{ expectedHttpErrors: ExpectedHttpError[]; guard
         }
       });
       page.on('pageerror', (err) => problems.push(`pageerror: ${err.message}`));
+      // Slow-CI simulation: VCKB_E2E_CPU_THROTTLE=4 makes the page's CPU 4x slower (Chromium CDP).
+      const throttle = Number(process.env.VCKB_E2E_CPU_THROTTLE);
+      if (throttle > 1) {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+      }
       await page.addInitScript(() => {
         document.addEventListener('securitypolicyviolation', (e) => {
           console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI || 'inline'}`);
@@ -59,4 +65,15 @@ export async function signIn(page: Page, token = TOKEN()) {
   await page.goto('/');
   await page.getByLabel('Access token').fill(token);
   await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+/**
+ * Signs in and opens the example board. Tests must not rely on the default route: it opens the
+ * first project by name, and other tests create projects that sort before "Example".
+ */
+export async function openExample(page: Page) {
+  await signIn(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Live' })).toBeVisible();
+  await page.goto('/p/example');
+  await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
 }
