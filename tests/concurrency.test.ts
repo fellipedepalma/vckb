@@ -121,7 +121,7 @@ describe('renumbered etags in the PATCH body', () => {
     expect((await res.json()).renumbered).toEqual({});
   });
 
-  // Fixes the limit: a header listing them reached ~30 KB with 500 cards (proxies reject 4-8 KB).
+  // Fixes the limit: a header listing them reached ~27 KB with 500 cards (proxies reject 4-8 KB).
   it('500 tasks in one column: response headers stay under 2 KB, all 499 etags are in the body', async () => {
     const { req, boards } = await setup(); // T-001 in todo
     const tasks = path.join(boards, 'app', 'tasks');
