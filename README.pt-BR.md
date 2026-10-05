@@ -102,7 +102,9 @@ docker compose up --build
 Cada card é uma parada de Tab. Para mover um card sem mouse: **Tab** até ele, **Espaço** pega o card,
 **Esquerda/Direita** trocam a coluna (inclusive colunas vazias), **Cima/Baixo** trocam a posição,
 **Espaço** solta e **Esc** cancela. Cada passo é anunciado para leitores de tela, e o foco continua
-no card. **Enter** fica reservado para abrir os detalhes do card (próxima etapa).
+no card. **Enter** abre os detalhes do card (um clique ou um toque rápido também); lá dentro,
+**Tab** e **Shift+Tab** ficam dentro do diálogo, **Esc** fecha (perguntando antes quando há
+alterações não salvas) e o foco volta ao card.
 
 ## CLI
 

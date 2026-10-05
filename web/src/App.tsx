@@ -3,11 +3,13 @@ import { api, ApiError, onUnauthorized, paths } from './api';
 import { applyMove } from './board-move';
 import { announceInDndRegion, Board, focusCard } from './components/Board';
 import { Login } from './components/Login';
+import { TaskDialog } from './components/TaskDialog';
 import { BoardSkeleton, describeError, DismissibleAlert, ErrorPanel, Notice } from './components/States';
 import { TopBar } from './components/TopBar';
 import { useBoard, useDebounced, useLiveEvents, useProjectRoute, useProjects } from './hooks';
 import { strings } from './strings';
-import type { BoardSnapshot } from './types';
+import type { TaskPatch } from './task-form';
+import type { BoardSnapshot, Task } from './types';
 
 type Session = { state: 'checking' } | { state: 'signedOut' } | { state: 'signedIn' } | { state: 'error'; error: unknown };
 
@@ -123,6 +125,61 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     etags.current.clear();
   }, [slug]);
 
+  /**
+   * Remembers the etags a save answered with: the saved card's (ETag header) and the other cards the
+   * save renumbered (`renumbered`, keyed by task ID; etags are tracked by file because IDs can repeat
+   * on a damaged board). Returns the ones that changed.
+   */
+  const recordEtags = (tasks: Task[], file: string, res: { data: { renumbered?: Record<string, string> } | null; etag?: string }) => {
+    const fileOf = new Map(tasks.map((t) => [t.id, t.file]));
+    const fresh = new Map<string, string>();
+    for (const [id, etag] of Object.entries(res.data?.renumbered ?? {})) {
+      const f = fileOf.get(id);
+      if (f && typeof etag === 'string') fresh.set(f, etag);
+    }
+    if (res.etag) fresh.set(file, res.etag);
+    for (const [f, etag] of fresh) etags.current.set(f, etag);
+    return fresh;
+  };
+
+  /**
+   * Saves an edit from the details dialog through the same queue as the moves, so it never overlaps a
+   * move that is still being saved and always sends the newest etag we know for the card. Resolves
+   * after the board was refetched (the card then shows the new data); rejects with the ApiError /
+   * NetworkError, leaving the board as it is: the dialog shows the problem and keeps what was typed.
+   */
+  const saveEdit = async (task: Task, patch: TaskPatch, etag: string) => {
+    if (!slug) throw new Error('no project');
+    const base = pending ?? board.data;
+    inFlight.current++;
+    const save = queue.current.then(async () => {
+      try {
+        const res = await api.patch<{ renumbered?: Record<string, string> }>(paths.task(slug, task.id), patch, {
+          ifMatch: etags.current.get(task.file) ?? etag,
+        });
+        recordEtags(base?.tasks ?? [], task.file, res);
+        return { error: null };
+      } catch (error) {
+        etags.current.delete(task.file); // whatever we knew about this file is now doubtful
+        return { error };
+      }
+    });
+    queue.current = save.then(() => true); // a failed edit must not drop the moves queued after it
+    const { error } = await save;
+    if (--inFlight.current === 0) {
+      if (!error) await reloadBoard();
+      if (inFlight.current === 0) {
+        setPending(null);
+        etags.current.clear();
+      }
+    }
+    if (error) throw error;
+  };
+
+  // The details dialog: which card is open, with the task as it was when it opened.
+  const [editing, setEditing] = useState<Task | null>(null);
+  useEffect(() => setEditing(null), [slug]);
+
   const onMove = async (file: string, status: string, position: number) => {
     const base = pending ?? board.data;
     const task = base?.tasks.find((t) => t.file === file);
@@ -139,15 +196,7 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
         const res = await api.patch<{ renumbered?: Record<string, string> }>(paths.task(slug, task.id), { status, position }, {
           ifMatch: etags.current.get(file) ?? task.etag,
         });
-        // renumbered is keyed by task ID; etags are tracked by file (IDs can repeat on a damaged board).
-        const fileOf = new Map(base.tasks.map((t) => [t.id, t.file]));
-        const fresh = new Map<string, string>();
-        for (const [id, etag] of Object.entries(res.data?.renumbered ?? {})) {
-          const f = fileOf.get(id);
-          if (f && typeof etag === 'string') fresh.set(f, etag);
-        }
-        if (res.etag) fresh.set(file, res.etag);
-        for (const [f, etag] of fresh) etags.current.set(f, etag);
+        const fresh = recordEtags(base.tasks, file, res);
         if (fresh.size) setPending((p) => p && { ...p, tasks: p.tasks.map((t) => (fresh.has(t.file) ? { ...t, etag: fresh.get(t.file)! } : t)) });
         return true;
       } catch (err) {
@@ -189,7 +238,15 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
     content = <ErrorPanel title={strings.board.loadError} error={projects.error} onRetry={reloadProjects} />;
   else if (!list.length) content = <Notice title={strings.projects.none}>{strings.projects.noneHint}</Notice>;
   else if (slug && !list.some((p) => p.slug === slug)) content = <Notice title={strings.projects.notFound(slug)} />;
-  else if (shown) content = <Board snapshot={shown} onMove={onMove} onDragStateChange={onDragStateChange} />;
+  else if (shown)
+    content = (
+      <Board
+        snapshot={shown}
+        onMove={onMove}
+        onDragStateChange={onDragStateChange}
+        onOpen={(file) => setEditing(shown.tasks.find((t) => t.file === file) ?? null)}
+      />
+    );
   else if (board.status === 'error') content = <ErrorPanel title={strings.board.loadError} error={board.error} onRetry={reloadBoard} />;
   else content = <BoardSkeleton />;
 
@@ -203,6 +260,20 @@ function Workspace({ onSignedOut }: { onSignedOut: () => void }) {
         {moveNotice && <DismissibleAlert message={moveNotice} onDismiss={() => setMoveNotice(null)} />}
         {content}
       </main>
+      {editing && slug && shown && (
+        <TaskDialog
+          key={editing.file}
+          task={editing}
+          slug={slug}
+          columns={shown.project.columns}
+          onSave={(patch, etag) => saveEdit(editing, patch, etag)}
+          onReload={async () => (await api.get<Task>(paths.task(slug, editing.id))).data}
+          onClose={() => {
+            setEditing(null);
+            focusCard(editing.file);
+          }}
+        />
+      )}
     </div>
   );
 }

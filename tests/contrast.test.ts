@@ -35,10 +35,11 @@ while ((match = regex.exec(cssContent)) !== null) {
 }
 
 const textColors = ['text', 'muted', 'accent', 'accent-2', 'review', 'danger'];
-const bgColors = ['surface', 'surface-2'];
+// `bg` is the field background inside the details dialog; `accent` is the Save button.
+const bgColors = ['bg', 'surface', 'surface-2'];
 
 const textPairs = bgColors.flatMap((bg) => textColors.map((fg) => ({ fg, bg })));
-textPairs.push({ fg: 'done-text', bg: 'done-surface' });
+textPairs.push({ fg: 'done-text', bg: 'done-surface' }, { fg: 'bg', bg: 'accent' });
 
 const borderPairs = [
   { border: 'line-strong', bg: 'bg' },

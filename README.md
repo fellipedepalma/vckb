@@ -101,7 +101,9 @@ docker compose up --build
 Every card is one Tab stop. To move a card without a mouse: **Tab** to it, **Space** picks it up,
 **Left/Right** change the column (empty columns included), **Up/Down** change its position,
 **Space** drops it and **Escape** cancels. Each step is announced to screen readers, and focus stays
-on the card. **Enter** is reserved for opening the card's details (coming next).
+on the card. **Enter** opens the card's details (a click or a quick tap does too); inside them
+**Tab** and **Shift+Tab** stay within the dialog, **Escape** closes it (asking first when there are
+unsaved changes) and focus returns to the card.
 
 ## CLI
 

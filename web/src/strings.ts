@@ -79,13 +79,63 @@ export const strings = {
   dnd: {
     roleDescription: 'draggable card',
     instructions:
-      'To move this card, press Space to pick it up. Use the left and right arrow keys to change the column and the up and down arrow keys to change its position. Press Space again to drop it, or Escape to cancel.',
+      'To move this card, press Space to pick it up. Use the left and right arrow keys to change the column and the up and down arrow keys to change its position. Press Space again to drop it, or Escape to cancel. Press Enter to open its details.',
     pickedUp: (id: string, title: string, column: string, position: number, total: number) =>
       `Picked up ${id}, ${title}, from ${column}, position ${position} of ${total}.`,
     moved: (id: string, column: string, position: number, total: number) => `${id} moved to ${column}, position ${position} of ${total}.`,
     dropped: (id: string, column: string, position: number, total: number) => `Dropped ${id} in ${column}, position ${position} of ${total}.`,
     cancelled: (id: string, column: string) => `Move cancelled. ${id} returned to ${column}.`,
     saveFailed: (id: string, column: string) => `${id} could not be saved and was put back in ${column}.`,
+  },
+
+  /** The task details dialog (edit an existing task). */
+  details: {
+    heading: 'Edit task',
+    close: 'Close details',
+    cancel: 'Cancel',
+    save: 'Save',
+    saving: 'Saving…',
+    reloaded: 'Fields reloaded from disk.',
+    fields: {
+      title: 'Title',
+      status: 'Status',
+      priority: 'Priority',
+      labels: 'Labels',
+      description: 'Description',
+    },
+    labelsHint: 'Separated by commas. Letters, digits, “.”, “_” and “-”, up to 32 characters each, at most 20 labels.',
+    labelsChips: 'Labels in this task',
+    descriptionHint: 'Plain text. The checklist and the agent notes in the file are left untouched.',
+    errors: {
+      required: 'Title is required.',
+      tooLong: (max: number) => `Use at most ${max.toLocaleString('en-US')} characters.`,
+      lineBreak: 'The title can’t contain line breaks.',
+      badLabel: (label: string) =>
+        `“${label}” isn’t a valid label. Start with a letter or digit, then use letters, digits, “.”, “_” or “-”, up to 32 characters.`,
+      tooManyLabels: (max: number) => `Use at most ${max} labels.`,
+      unknownValue: 'Choose one of the options.',
+    },
+    discard: {
+      title: 'Discard changes?',
+      body: 'Your edits to this task haven’t been saved.',
+      keep: 'Keep editing',
+      confirm: 'Discard',
+    },
+    conflict: {
+      title: 'This task changed on disk',
+      body: 'Its file was edited (by an agent, or by hand) after you opened it. Nothing was overwritten. Reloading replaces the fields below with what is on disk, and your edits are lost.',
+      keep: 'Keep editing',
+      reload: 'Reload from disk',
+    },
+    duplicateId: (slug: string) =>
+      `Another task file uses this ID, so it can’t be saved. Run “vckb doctor ${slug} --fix” in a terminal, then try again.`,
+    gone: 'This task no longer exists on disk. Close the details and check the board.',
+    network: 'Can’t reach the VCKB server. Your edits are still here.',
+    serverError: (message: string) => `The server couldn’t save this task (${message}). Your edits are still here.`,
+    rejected: (message: string) => `The server rejected the change: ${message}`,
+    reloadFailed: (reason: string) => `Couldn’t read the task from disk (${reason}). Your edits are still here.`,
+    retry: 'Try again',
+    dismiss: 'Dismiss',
   },
 
   move: {

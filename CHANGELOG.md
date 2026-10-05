@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Web UI: task details dialog to edit an existing task. Click a card, tap it, or press Enter on it
+  (a drag never opens it; Space still picks a card up). Edit title, status, priority, labels
+  (comma-separated) and description; Save sends only the changed fields with the task's `If-Match`
+  through the same per-project save queue as drag and drop, and leaves the checklist and the agent
+  notes in the file untouched. A status change without a position puts the card at the end of the
+  new column. Errors stay inside the dialog and keep what was typed (400 in the field, 409 with the
+  `vckb doctor <project> --fix` hint, 412 "changed on disk" with Keep editing / Reload from disk,
+  network and 5xx with Try again). Closing with unsaved changes asks first. Built on `<dialog>`
+  (inert page behind, focus kept inside, Escape, focus back on the card), full screen on phones, and
+  no animation with `prefers-reduced-motion`. Live updates keep refreshing the board behind it
+  without touching the form. Delete, creating tasks and the full conflict flow come later.
 - Testing: `VCKB_E2E_CPU_THROTTLE` slows the browser CPU in e2e tests to simulate a slow CI;
   `npm run test:e2e:stress` runs long keyboard loops; a manual "E2E stress" workflow repeats the
   e2e suite N times; CI uploads the Playwright report on failure and posts failures as annotations.

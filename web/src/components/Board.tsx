@@ -66,6 +66,7 @@ export function TaskCard({
   overlay = false,
   describedBy,
   articleRef,
+  onOpen,
 }: {
   task: Task;
   warned: boolean;
@@ -75,6 +76,8 @@ export function TaskCard({
   describedBy?: string;
   /** dnd-kit activator: the element whose Space key picks the card up. */
   articleRef?: (el: HTMLElement | null) => void;
+  /** A click or Enter on the card (never as part of a drag): open its details. */
+  onOpen?: (via: 'click' | 'key') => void;
 }) {
   const titleId = useId();
   
@@ -97,7 +100,18 @@ export function TaskCard({
       aria-roledescription={overlay ? undefined : strings.dnd.roleDescription}
       aria-describedby={overlay ? undefined : describedBy}
       tabIndex={overlay ? -1 : 0}
-      className={`rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+      onClick={onOpen && (() => onOpen('click'))}
+      onKeyDown={
+        onOpen &&
+        ((e) => {
+          // Space stays "pick up" (dnd-kit); Enter opens. Not while a key is held down.
+          if (e.key === 'Enter' && !e.repeat && e.target === e.currentTarget) {
+            e.preventDefault();
+            onOpen('key');
+          }
+        })
+      }
+      className={`${onOpen ? 'cursor-pointer ' : ''}rounded-[7px] border ${borderClass} ${bgClass} p-3 ${shadowClass} outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
     >
       <div className="flex items-center gap-2 text-[11px] text-muted">
         <span className="font-mono font-medium text-accent uppercase tracking-wider">{task.id}</span>
@@ -201,7 +215,7 @@ const columnId = (name: string) => `${COLUMN_ID}${name}`;
  * The `listeners` (pointer, touch and the Space key) sit on the <li>; keydown bubbles up to it from
  * the article, which is registered as the activator.
  */
-function SortableCard({ task, warned, quiet }: { task: Task; warned: boolean; quiet: boolean }) {
+function SortableCard({ task, warned, quiet, onOpen }: { task: Task; warned: boolean; quiet: boolean; onOpen: (file: string, via: 'click' | 'key') => void }) {
   const { setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({ id: task.file });
   return (
     <li
@@ -219,7 +233,7 @@ function SortableCard({ task, warned, quiet }: { task: Task; warned: boolean; qu
           </div>
         </div>
       ) : (
-        <TaskCard task={task} warned={warned} quiet={quiet} describedBy={attributes['aria-describedby']} articleRef={setActivatorNodeRef} />
+        <TaskCard task={task} warned={warned} quiet={quiet} describedBy={attributes['aria-describedby']} articleRef={setActivatorNodeRef} onOpen={(via) => onOpen(task.file, via)} />
       )}
     </li>
   );
@@ -230,11 +244,13 @@ function Column({
   tasks,
   warnedFiles,
   highlighted,
+  onOpen,
 }: {
   name: string;
   tasks: Task[];
   warnedFiles: Set<string>;
   highlighted: boolean;
+  onOpen: (file: string, via: 'click' | 'key') => void;
 }) {
   const headingId = useId();
   const review = name === REVIEW_COLUMN;
@@ -270,7 +286,7 @@ function Column({
       <SortableContext items={tasks.map((t) => t.file)} strategy={verticalListSortingStrategy}>
         <ol className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 ${listBg}`}>
           {tasks.map((t) => (
-            <SortableCard key={t.file} task={t} warned={warnedFiles.has(t.file)} quiet={name === DONE_COLUMN} />
+            <SortableCard key={t.file} task={t} warned={warnedFiles.has(t.file)} quiet={name === DONE_COLUMN} onOpen={onOpen} />
           ))}
           {tasks.length === 0 && (
             <li className="rounded-[7px] border border-dashed border-line px-3 py-4 text-center text-[12px] text-muted">{strings.board.emptyColumn}</li>
@@ -366,9 +382,14 @@ export interface BoardProps {
   onMove?: (file: string, status: string, position: number) => void;
   /** Tells the page a drag started/ended (live refetches are held back while dragging). */
   onDragStateChange?: (dragging: boolean) => void;
+  /** A click (or Enter) on a card, not part of a drag: open that task's details. */
+  onOpen?: (file: string) => void;
 }
 
-export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
+/** After a drag ends the browser may still send a click to the dragged card; it must not open the details. */
+const CLICK_AFTER_DRAG_MS = 400;
+
+export function Board({ snapshot, onMove, onDragStateChange, onOpen }: BoardProps) {
   const { project, tasks, warnings } = snapshot;
   const groups = groupByColumn(project.columns, tasks);
   const warned = filesWithWarnings(warnings);
@@ -381,6 +402,8 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
   // While dragging, cards move between columns locally; otherwise the snapshot is the truth.
   const [items, setItems] = useState<Items>(derived);
   const [active, setActive] = useState<string | null>(null);
+  const activeRef = useRef<string | null>(null);
+  activeRef.current = active;
   const [overColumn, setOverColumn] = useState<string | null>(null);
   const start = useRef<{ items: Items; column: string; index: number } | null>(null);
   useEffect(() => {
@@ -482,7 +505,16 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
     return Object.keys(from).find((c) => from[c].includes(key)) ?? null;
   };
 
+  const lastDrag = useRef<{ file: string; until: number } | null>(null);
+  const openCard = (file: string, via: 'click' | 'key') => {
+    if (active) return;
+    // Only a click on the card that was just dragged is the drag's own click; Enter and other cards are fine.
+    if (via === 'click' && lastDrag.current?.file === file && performance.now() < lastDrag.current.until) return;
+    onOpen?.(file);
+  };
+
   const end = () => {
+    if (activeRef.current) lastDrag.current = { file: activeRef.current, until: performance.now() + CLICK_AFTER_DRAG_MS };
     start.current = null;
     setActive(null);
     setOverColumn(null);
@@ -618,6 +650,7 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
               tasks={(items[c] ?? []).map((f) => byFile.get(f)).filter((t): t is Task => !!t)}
               warnedFiles={warned}
               highlighted={active !== null && overColumn === c}
+              onOpen={openCard}
             />
           ))}
           {/* No drop animation: while it ran (~250ms), grabbing the same card again was sometimes
