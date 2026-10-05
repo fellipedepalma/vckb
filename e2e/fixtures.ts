@@ -16,7 +16,8 @@ export interface ExpectedHttpError {
  */
 export const httpErrors = (...errors: ExpectedHttpError[]): [ExpectedHttpError[], { scope: 'test' }] => [errors, { scope: 'test' }];
 
-const RESOURCE_ERROR = /^Failed to load resource: the server responded with a status of (\d+)/;
+/** Status 0 stands for a request that never got an answer (net::ERR_...). */
+const RESOURCE_ERROR = /^Failed to load resource: (?:the server responded with a status of (\d+)|net::ERR_\w+)/;
 
 /**
  * Every test fails if the page logs a console error or warning about CSP, throws, or triggers a
@@ -32,7 +33,7 @@ export const test = base.extend<{ expectedHttpErrors: ExpectedHttpError[]; guard
         if (msg.type() === 'error') {
           const http = RESOURCE_ERROR.exec(text);
           const url = msg.location().url;
-          if (http && expectedHttpErrors.some((e) => e.status === Number(http[1]) && e.url.test(url))) return;
+          if (http && expectedHttpErrors.some((e) => e.status === Number(http[1] ?? 0) && e.url.test(url))) return;
           problems.push(`console.error: ${text} (${url})`);
         } else if (/content security policy|refused to/i.test(text)) {
           problems.push(`console.${msg.type()}: ${text}`);
