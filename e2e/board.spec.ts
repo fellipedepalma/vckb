@@ -183,6 +183,17 @@ test.describe('board', () => {
     }
   });
 
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    // Regression: the visually hidden texts inside the scrolling board used to widen the whole page.
+    test('the page does not scroll sideways (only the board does)', async ({ page }) => {
+      await openExample(page);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow).toBe(0);
+    });
+  });
+
   test('card receives visible focus ring when navigating with Tab', async ({ page }) => {
     await openExample(page);
     await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();

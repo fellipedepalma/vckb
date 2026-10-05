@@ -596,7 +596,7 @@ export function Board({ snapshot, onMove, onDragStateChange }: BoardProps) {
       <WarningsBanner slug={project.slug} warnings={warnings} />
       {tasks.length === 0 && <p className="px-4 pt-4 text-muted sm:px-6">{strings.board.empty}</p>}
       <div
-        className="grid min-h-0 flex-1 grid-flow-col auto-cols-[minmax(250px,1fr)] snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 pt-3 sm:snap-none sm:px-6"
+        className="relative grid min-h-0 flex-1 grid-flow-col auto-cols-[minmax(250px,1fr)] snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 pt-3 sm:snap-none sm:px-6"
         role="region"
         aria-label={project.name}
         data-board

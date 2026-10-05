@@ -97,6 +97,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Web UI: on narrow screens the page could scroll sideways into blank space (visually hidden texts
+  inside the board's scroll area stuck out of it); the board now contains them.
 - Keyboard moves: after a failed save rolled a card back, focus could end up nowhere on a slow
   machine (it was set before the board re-rendered). It now follows the card until it lands.
 
