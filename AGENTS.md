@@ -82,6 +82,9 @@ boards/       data (one directory per project). Only boards/example/ is versione
 - Every bug fix gets a regression test. Security findings go in `tests/security.test.ts`.
 - Dates (`created`, `updated`, agent notes) use `YYYY-MM-DD` in the server's local timezone.
 - Style: 2 spaces, single quotes, semicolons, no `any` (except in tests).
+- `@dnd-kit/*` is pinned and ignored by Dependabot: `ImmediateKeyboardSensor` (`web/src/components/Board.tsx`)
+  relies on private internals of `@dnd-kit/core` 6.3.1. Bump manually: re-read that class, run
+  `VCKB_E2E_CPU_THROTTLE=6 npm run test:e2e:stress`, then update `REVIEWED` in `tests/dnd-kit-pin.test.ts`.
 - Update `CHANGELOG.md` (section `Unreleased`) in the same commit as any user-visible change.
 
 ## Task files edited by hand (contract)

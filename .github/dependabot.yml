@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # Manual bumps only: ImmediateKeyboardSensor (web/src/components/Board.tsx) relies on dnd-kit
+      # internals. Review it and run the stress test at CPU throttle 6 before bumping (see AGENTS.md).
+      - dependency-name: "@dnd-kit/*"
 
   - package-ecosystem: github-actions
     directory: /

@@ -139,15 +139,20 @@ export function TaskCard({
   );
 }
 
-/** Mouse and pen: a drag starts after 8px of movement, so a plain click never moves a card. */
 /**
  * dnd-kit's KeyboardSensor starts listening for keys in a setTimeout after the pick-up, so it doesn't
  * treat the Space that started the drag (still bubbling) as "drop". Chrome runs input before timers,
  * so a key pressed right after Space could arrive before that timer and was lost (seen on CI; with
- * the CPU throttled 6x the e2e "keys pressed right after Space are not lost" failed 4 of 30 runs
- * before, 0 of 30 after). This variant
- * listens at once and ignores only the activating keydown. It relies on internals of
- * @dnd-kit/core 6.3.1 (pinned); the e2e test guards it on upgrades.
+ * the CPU throttled 6x the e2e "keys pressed right after Space are not lost" fails about 1 run in 6
+ * with the stock sensor and never with this one). This variant listens at once and ignores only the
+ * activating keydown.
+ *
+ * Reviewed against @dnd-kit/core 6.3.1 and @dnd-kit/sortable 10.0.0 (both pinned in package.json).
+ * Internals it relies on, all private in dnd-kit's types: the `attach` method (called by the base
+ * constructor), `props.event` (the activating event), `listeners` and `windowListeners` (the
+ * dnd-kit `Listeners` helpers: `add`), `handleStart`, `handleCancel` and `handleKeyDown`.
+ * Before bumping either package, re-review this class and run
+ * `VCKB_E2E_CPU_THROTTLE=6 npm run test:e2e:stress`; tests/dnd-kit-pin.test.ts fails on a bump.
  */
 class ImmediateKeyboardSensor extends KeyboardSensor {}
 // \`attach\` is private in dnd-kit's types, so it is replaced on the prototype (the base constructor
@@ -171,6 +176,7 @@ Object.defineProperty(ImmediateKeyboardSensor.prototype, 'attach', {
   },
 });
 
+/** Mouse and pen: a drag starts after 8px of movement, so a plain click never moves a card. */
 class MousePenSensor extends PointerSensor {
   static activators = [
     {
