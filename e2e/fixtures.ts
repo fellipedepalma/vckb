@@ -78,3 +78,10 @@ export async function openExample(page: Page) {
   await page.goto('/p/example');
   await expect(page.getByRole('heading', { name: 'Dark mode' })).toBeVisible();
 }
+
+/**
+ * dnd-kit swallows every click for 50 ms after a drag ends (a document-level capture listener). A
+ * person cannot click that fast, a script can: an immediate click on another card failed 23 of 25
+ * runs. Call this after a drag, before clicking any card (150 ms = the 50 ms with margin for a slow CI).
+ */
+export const afterDrag = (page: Page) => page.waitForTimeout(150);

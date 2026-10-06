@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import { strings } from '../web/src/strings.js';
-import { expect, httpErrors, signIn, taskFile, test, TOKEN } from './fixtures.js';
+import { afterDrag, expect, httpErrors, signIn, taskFile, test, TOKEN } from './fixtures.js';
 
 /** The task details dialog (edit an existing task): open, edit, save, errors, unsaved changes. */
 
@@ -365,9 +365,7 @@ test.describe('editing and saving', () => {
 
     await mouseDrag(page, card(page, 'Beta'), column(page, slug, 'Doing').locator('ol'), { at: 0.9 });
     await expect(column(page, slug, 'Doing').getByRole('article', { name: 'Beta' })).toBeVisible();
-    // dnd-kit swallows every click for 50 ms after a drag ends (a document-level capture listener):
-    // a person cannot click that fast, a script can (an immediate click failed 23 of 25 runs).
-    await page.waitForTimeout(150);
+    await afterDrag(page);
     // The move is still in flight: open Alpha, edit, save.
     await card(page, 'Alpha').click();
     await expect(dialog(page)).toBeVisible();
