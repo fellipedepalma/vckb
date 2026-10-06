@@ -72,6 +72,11 @@ boards/       data (one directory per project). Only boards/example/ is versione
 - Disk writes always go through `atomicWrite` and inside the project's `withLock`.
 - Every path built from external input goes through `assertSlug`/`normalizeTaskId` **and**
   `safeJoin`. Never `path.join` user input.
+- Task files are untrusted input (agents and clones write them). Reading goes through `parseTaskFile`
+  (`PARSE_LIMITS`: 1 MiB per file, 64 KiB of frontmatter, 20 levels; no tags, anchors, aliases or
+  merge keys) and `readTaskFile` (size checked before opening, UTF-8 strictly). Writing: titles and
+  labels without line breaks, a description without `## Checklist` / `## Agent notes` lines. Tests:
+  `tests/hostile-files.test.ts`, `tests/frontmatter-properties.test.ts`, `tests/frontmatter-fuzz.test.ts`.
 - Never swap the frontmatter parser for something that accepts `---js` (libraries such as gray-matter `eval` it).
 - Preserve the Markdown body: change only the section you need (`setChecklist`, `setDescription`,
   `appendNote`).

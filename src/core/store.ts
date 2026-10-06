@@ -10,9 +10,11 @@ import {
   getDescription,
   kebab,
   newTaskBody,
+  PARSE_LIMITS,
   parseTaskFile,
   type Priority,
   PRIORITIES,
+  RESERVED_HEADING_RE,
   serializeTask,
   setChecklist,
   setDescription,
@@ -212,6 +214,22 @@ function columnNeedsRenumber(column: Entry[]): boolean {
   return column.some((e) => e.missing.includes('order')) || new Set(column.map((e) => e.doc.order)).size !== column.length;
 }
 
+/**
+ * Reads a task file as text. Task files are untrusted input: one bigger than PARSE_LIMITS.fileBytes is
+ * never opened (the size is checked first, so a huge file costs no memory), and bytes that are not
+ * valid UTF-8 are refused instead of being replaced by U+FFFD, which a later rewrite would make permanent.
+ */
+async function readTaskFile(full: string): Promise<string> {
+  const { size } = await fs.stat(full);
+  if (size > PARSE_LIMITS.fileBytes) throw new Error(`file is larger than ${PARSE_LIMITS.fileBytes} bytes; not read`);
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(await fs.readFile(full));
+  } catch (err) {
+    if (err instanceof TypeError) throw new Error('file is not valid UTF-8');
+    throw err;
+  }
+}
+
 // -------------------------------------------------------------- validation
 
 function vString(v: unknown, field: string, max: number, { required = false, multiline = false } = {}): string {
@@ -221,6 +239,15 @@ function vString(v: unknown, field: string, max: number, { required = false, mul
   if (s.length > max) throw invalid(`"${field}" exceeds ${max} characters`);
   if (!multiline && /[\r\n]/.test(s)) throw invalid(`"${field}" must not contain line breaks`);
   return s;
+}
+
+/** A task description: text only, and no line that would start the file's own sections (see RESERVED_HEADING_RE). */
+function vDescription(v: unknown): string {
+  const text = vString(v, 'description', LIMITS.body, { multiline: true });
+  if (RESERVED_HEADING_RE.test(text)) {
+    throw invalid('"description" must not contain a line that is a "## Checklist" or "## Agent notes" heading: those start the sections of the task file');
+  }
+  return text;
 }
 
 function vPriority(v: unknown): Priority {
@@ -436,7 +463,7 @@ export class BoardStore {
       let parsed;
       let raw: string;
       try {
-        raw = await fs.readFile(full, 'utf8');
+        raw = await readTaskFile(full);
         parsed = parseTaskFile(raw);
       } catch (err) {
         warnings.push({ code: 'invalid_file', file, message: `${file}: ${(err as Error).message}` });
@@ -645,7 +672,7 @@ export class BoardStore {
         body = vString(input.body, 'body', LIMITS.body, { multiline: true });
       } else {
         const description =
-          input.description === undefined ? '' : vString(input.description, 'description', LIMITS.body, { multiline: true });
+          input.description === undefined ? '' : vDescription(input.description);
         body = newTaskBody(description, input.checklist === undefined ? [] : vChecklist(input.checklist));
       }
 
@@ -687,7 +714,7 @@ export class BoardStore {
       if (patch.labels !== undefined) doc.labels = vLabels(patch.labels);
       if (patch.body !== undefined) doc.body = vString(patch.body, 'body', LIMITS.body, { multiline: true });
       if (patch.description !== undefined) {
-        doc.body = setDescription(doc.body, vString(patch.description, 'description', LIMITS.body, { multiline: true }));
+        doc.body = setDescription(doc.body, vDescription(patch.description));
       }
       if (patch.checklist !== undefined) doc.body = setChecklist(doc.body, vChecklist(patch.checklist));
       if (doc.body.length > LIMITS.body) throw invalid(`body exceeds ${LIMITS.body} characters`);

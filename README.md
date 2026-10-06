@@ -231,6 +231,25 @@ Free-form Markdown description.
 - The section headings `## Checklist` and `## Agent notes` are part of the format. `## Notas do agente`
   (Portuguese) is accepted as an alias for agent notes; an existing heading is always preserved.
 
+### File format and trust model
+
+Task files are edited by agents and arrive in clones and pull requests, so VCKB treats every one of
+them as **untrusted input**. Reading a file never runs anything and stays cheap whatever it holds:
+
+| Accepted | Rejected (the file is listed as unreadable, with a warning; the rest of the board works) |
+|---|---|
+| YAML frontmatter between a first `---` line (optionally `---yaml`) and a closing line that is exactly `---` (trailing spaces allowed) | `---js`, `---javascript`, `---coffee`, `---json`: no frontmatter engine is ever run |
+| A mapping of plain YAML values: strings, numbers, booleans, null, lists, maps | YAML tags beyond the basics (`!!js/function`, `!!python/...`, `!!binary`, custom `!tags`) |
+| UTF-8 text, with a BOM and/or CRLF (both are kept when the file is rewritten) | Anchors and aliases (`&a`, `*a`) and `<<` merge keys: a few of them nest into billions of values. A quoted `*` or `&` in a title is fine |
+| Duplicate-free keys | Duplicate keys, a block that is never closed, a `----` line instead of `---`, NUL or other control characters, bytes that are not UTF-8 |
+| Unknown fields, kept as they are | `__proto__`, `constructor` and `prototype` keys, at any depth: dropped |
+
+Limits: a task file over **1 MiB** is not even opened, the frontmatter block is at most **64 KiB**
+and at most **20 levels** deep. A body bigger than what the API accepts (100,000 characters) is
+only readable, not editable. Writing is just as strict: titles and labels with line breaks are
+refused (`400`), what is written reads back exactly, and a description may not contain a line that is
+a `## Checklist` or `## Agent notes` heading (those start the file's own sections; `400`).
+
 ### Hand-edited files
 
 Agents and humans may create or edit task files directly. VCKB never refuses to list a board

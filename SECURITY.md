@@ -23,7 +23,9 @@ session cookie for the web UI (see "Security model" and its threat model in the
 - escaping the boards directory (path traversal, symlinks),
 - authentication bypass, session forgery or token leakage,
 - CSRF, DNS rebinding or `Host`/`Origin` check bypasses,
-- code execution through task files or API input,
+- code execution through task files or API input (task files are untrusted input: the frontmatter
+  parser refuses `---js` engines, YAML tags, anchors/aliases and oversized files; see "File format
+  and trust model" in the [README](README.md#file-format-and-trust-model)),
 - XSS in the web UI through task content.
 
 Deployments exposed to the internet without TLS and additional authentication are outside the

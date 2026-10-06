@@ -115,6 +115,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Security (task files are untrusted input):** a task file with a few YAML anchors and aliases (`labels: *a`)
+  could hang the server and the CLI for minutes or forever (a "billion laughs" file: 8 levels already took
+  2 s, 30 never finished). Aliases, anchors and `<<` merge keys are now refused, together with YAML tags beyond
+  the basics; a task file over 1 MiB is not opened, its frontmatter may have at most 64 KiB and 20 levels; bytes
+  that are not UTF-8 make the file invalid instead of being rewritten as U+FFFD; `__proto__`, `constructor` and
+  `prototype` keys are dropped at any depth. A frontmatter that is never closed is now an invalid file (it used
+  to swallow the body), and the closing line must be exactly `---`. Such files are listed as warnings and the
+  rest of the board keeps working. See "File format and trust model" in the README.
+- A description that contains a line `## Checklist`, `## Agent notes` or `## Notas do agente` was cutting the
+  description short, turning its text into a fake checklist and duplicating text on every save. The API now
+  refuses it (`400`, field `description`; the details dialog shows the error in the field).
+- A BOM and CRLF line endings in the frontmatter of a task file are kept when VCKB rewrites it (the BOM
+  used to be dropped and the frontmatter changed to LF while the body stayed CRLF).
 - Dependencies: `npm audit --omit=dev` started failing (GHSA-hp3w-g68c-fv3c, `sprintf-js`, reached through
   gray-matter -> js-yaml 3 -> argparse 1; it was never loaded by VCKB). Task files are now split into
   frontmatter and body by VCKB itself and parsed with js-yaml 5, which was already a dependency, so

@@ -1,7 +1,24 @@
 import * as yaml from 'js-yaml';
 
-/** js-yaml's default (safe) schema plus `<<` merge keys, which gray-matter's js-yaml 3 understood. */
-const READ_SCHEMA = yaml.CORE_SCHEMA.withTags(yaml.mergeTag);
+/**
+ * Task files are written by people and by agents, and they come from clones and pull requests, so
+ * they are UNTRUSTED INPUT. These limits keep reading one cheap whatever it contains.
+ */
+export const PARSE_LIMITS = {
+  /** A task file larger than this is not read at all (the store checks the size before opening it). */
+  fileBytes: 1_048_576,
+  /** The frontmatter block, between the two `---` lines. */
+  frontmatterBytes: 65_536,
+  /** Nesting depth of lists and mappings inside the frontmatter. */
+  depth: 20,
+} as const;
+
+/**
+ * How the frontmatter is read: js-yaml's core schema (no tags beyond the YAML basics, so nothing like
+ * `!!js/function`), no anchors or aliases (`&a` / `*a`: a few of them nest into billions of values),
+ * no merge keys (they only exist to be used with aliases), limited depth. Duplicate keys are an error.
+ */
+const READ_OPTIONS = { schema: yaml.CORE_SCHEMA, maxAliases: 0, maxDepth: PARSE_LIMITS.depth };
 
 export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -33,6 +50,10 @@ export interface TaskDoc {
   /** Unknown frontmatter fields, preserved when the file is rewritten. */
   extra: Record<string, unknown>;
   body: string;
+  /** The file started with a byte order mark; written back as it was. */
+  bom?: boolean;
+  /** The frontmatter lines ended in CRLF (the body is always kept exactly as it was). */
+  eol?: '\r\n';
 }
 
 const KNOWN_KEYS = ['id', 'title', 'status', 'priority', 'labels', 'order', 'created', 'updated'];
@@ -44,28 +65,54 @@ function toDateString(v: unknown): string {
 }
 
 function toLabels(v: unknown): string[] {
-  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+  if (Array.isArray(v)) return v.filter((x) => typeof x === 'string' || typeof x === 'number').map((x) => String(x).trim()).filter(Boolean);
   if (typeof v === 'string') return v.split(',').map((x) => x.trim()).filter(Boolean);
   return [];
 }
 
 /**
- * Splits `---` frontmatter from the Markdown body: the opening line is `---` (the caller already
- * refused `---js` and friends), the block ends at the first line starting with `---`, and one line
- * break after that closing line is dropped from the body. A block with only comments is `{}`; an
- * unterminated block takes the whole file and leaves an empty body.
- * SECURITY: only js-yaml's default (safe) schema reads the block; there is no code engine to run.
+ * Splits a task file into its frontmatter block and Markdown body.
+ * The first line is `---` (optionally `---yaml`/`---yml`, checked by the caller); the block ends at the
+ * first line that is exactly `---` (trailing spaces and tabs allowed), so `----` or `---text` do not
+ * end it and a `---` line inside the body is just body. A block that is never closed is an error:
+ * guessing where the body starts would reinterpret text as YAML and rewrite it.
+ * SECURITY: only js-yaml reads the block (see READ_OPTIONS); there is no code engine to run.
  */
-function splitFrontmatter(raw: string): { data: unknown; content: string } {
+function splitFrontmatter(raw: string): { block: string; content: string; eol: '\n' | '\r\n' } {
   const firstLineEnd = raw.search(/\r?\n/);
-  const rest = firstLineEnd === -1 ? '' : raw.slice(firstLineEnd); // starts with the line break
-  const close = rest.indexOf('\n---');
-  const block = close === -1 ? rest : rest.slice(0, close);
-  let content = close === -1 ? '' : rest.slice(close + '\n---'.length);
-  if (content.startsWith('\r')) content = content.slice(1);
-  if (content.startsWith('\n')) content = content.slice(1);
-  const empty = block.replace(/^\s*#[^\n]+/gm, '').trim() === '';
-  return { data: empty ? {} : yaml.load(block, { schema: READ_SCHEMA }), content };
+  if (firstLineEnd === -1) throw new Error('frontmatter is not closed (no closing "---" line)');
+  const eol = raw[firstLineEnd] === '\r' ? '\r\n' : '\n';
+  const start = firstLineEnd + eol.length;
+  let pos = start;
+  while (pos <= raw.length) {
+    const nl = raw.indexOf('\n', pos);
+    const lineEnd = nl === -1 ? raw.length : nl;
+    const line = raw.slice(pos, raw[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd);
+    if (/^---[ \t]*$/.test(line)) {
+      const block = raw.slice(start, pos);
+      if (Buffer.byteLength(block, 'utf8') > PARSE_LIMITS.frontmatterBytes) {
+        throw new Error(`frontmatter is larger than ${PARSE_LIMITS.frontmatterBytes} bytes`);
+      }
+      return { block, content: nl === -1 ? '' : raw.slice(nl + 1), eol };
+    }
+    if (nl === -1) break;
+    pos = nl + 1;
+  }
+  throw new Error('frontmatter is not closed (no closing "---" line)');
+}
+
+/** Keys that could reach an object's prototype if some code ever assigned them; dropped everywhere. */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/** A copy of a parsed YAML value without the unsafe keys at any depth (the parser limits the depth). */
+function cleanValue(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(cleanValue);
+  if (v && typeof v === 'object' && !(v instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) if (!UNSAFE_KEYS.has(k)) out[k] = cleanValue(x);
+    return out;
+  }
+  return v;
 }
 
 /** A parsed file plus the known fields that were absent or unusable (defaults were applied). */
@@ -77,15 +124,23 @@ export interface ParsedTask {
 /**
  * Reads a task .md file. Tolerant of hand-edited files: absent or invalid fields get
  * defaults and are listed in `missing` (id/title fall back to ''; the store fills them in).
- * Throws only when the file has no frontmatter block or the frontmatter is not YAML.
+ * Throws (an Error the store reports as an invalid file) when the file is too big, has no closed
+ * `---` frontmatter block, the block is not a YAML mapping, or it breaks the rules in READ_OPTIONS.
  */
 export function parseTaskFile(input: string): ParsedTask {
-  const raw = input.replace(/^\uFEFF/, ''); // BOM left by some Windows editors
+  if (input.length > PARSE_LIMITS.fileBytes) throw new Error(`file is larger than ${PARSE_LIMITS.fileBytes} bytes`);
+  const bom = input.startsWith('﻿'); // left by some Windows editors; kept when the file is rewritten
+  const raw = bom ? input.slice(1) : input;
   const lang = /^---([^\r\n]*)/.exec(raw)?.[1].trim().toLowerCase();
   if (lang === undefined) throw new Error('file has no frontmatter (it must start with "---")');
   if (lang && lang !== 'yaml' && lang !== 'yml') throw new Error('frontmatter must be YAML');
-  const parsed = splitFrontmatter(raw);
-  const data = (parsed.data ?? {}) as Record<string, unknown>;
+  const { block, content, eol } = splitFrontmatter(raw);
+  const blank = block.split(/\r?\n/).every((line) => line.trim() === '' || line.trimStart().startsWith('#'));
+  const loaded = blank ? {} : yaml.load(block, READ_OPTIONS);
+  if (loaded !== null && loaded !== undefined && (typeof loaded !== 'object' || Array.isArray(loaded))) {
+    throw new Error('frontmatter must be a YAML mapping (key: value lines)');
+  }
+  const data = (loaded ?? {}) as Record<string, unknown>;
   const missing: string[] = [];
   const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');
 
@@ -97,7 +152,7 @@ export function parseTaskFile(input: string): ParsedTask {
   if (!status) missing.push('status');
   const priority = PRIORITIES.includes(data.priority as Priority) ? (data.priority as Priority) : 'medium';
   if (priority !== data.priority) missing.push('priority');
-  const order = data.order === null || data.order === undefined || data.order === '' ? NaN : Number(data.order);
+  const order = typeof data.order === 'number' || typeof data.order === 'string' ? (data.order === '' ? NaN : Number(data.order)) : NaN;
   if (!Number.isFinite(order)) missing.push('order');
   const created = toDateString(data.created);
   if (!created) missing.push('created');
@@ -106,7 +161,7 @@ export function parseTaskFile(input: string): ParsedTask {
 
   const extra: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(data)) {
-    if (!KNOWN_KEYS.includes(k) && k !== '__proto__' && k !== 'constructor' && k !== 'prototype') extra[k] = v;
+    if (!KNOWN_KEYS.includes(k) && !UNSAFE_KEYS.has(k)) extra[k] = cleanValue(v);
   }
   return {
     doc: {
@@ -119,7 +174,9 @@ export function parseTaskFile(input: string): ParsedTask {
       created,
       updated,
       extra,
-      body: parsed.content,
+      body: content,
+      ...(bom ? { bom: true } : {}),
+      ...(eol === '\r\n' ? { eol } : {}),
     },
     missing,
   };
@@ -131,7 +188,7 @@ export function parseTask(raw: string): TaskDoc {
 }
 
 function scalar(v: unknown): string {
-  return yaml.dump(v, { lineWidth: -1 }).trimEnd();
+  return yaml.dump(v, { lineWidth: -1, noRefs: true }).trimEnd();
 }
 
 /** Serializes with a stable field order, in the same style as the documented format. */
@@ -148,8 +205,10 @@ export function serializeTask(t: TaskDoc): string {
     `updated: ${date(t.updated)}`,
   ];
   const extraKeys = Object.keys(t.extra);
-  if (extraKeys.length) lines.push(yaml.dump(t.extra, { lineWidth: -1 }).trimEnd());
-  return `---\n${lines.join('\n')}\n---\n${t.body}`;
+  if (extraKeys.length) lines.push(yaml.dump(t.extra, { lineWidth: -1, noRefs: true }).trimEnd());
+  const eol = t.eol ?? '\n';
+  const front = `---\n${lines.join('\n')}\n---\n`.replace(/\n/g, eol);
+  return `${t.bom ? '﻿' : ''}${front}${t.body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +226,17 @@ interface Section {
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A line of a description that would start one of the file's own sections ("## Checklist",
+ * "## Agent notes", "## Notas do agente"). The store refuses such a description: the first matching
+ * line is where the file's sections are taken to begin, so it would cut the description short,
+ * turn its text into a fake checklist or notes, and duplicate text on every later save.
+ */
+export const RESERVED_HEADING_RE = new RegExp(
+  `^##[ \\t]+(?:${[CHECKLIST_HEADING, ...NOTES_HEADINGS].map(escapeRe).join('|')})[ \\t]*\\r?$`,
+  'im',
+);
 
 /** Finds the first section whose heading matches any of `headings` (case-insensitive). */
 function findSection(body: string, headings: string | readonly string[]): Section | null {

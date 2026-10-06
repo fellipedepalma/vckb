@@ -174,7 +174,9 @@ describe('Markdown body', () => {
 
 /**
  * Splitting frontmatter from the body is done by VCKB itself (it used gray-matter before). Every case
- * here gave the same result with gray-matter 4.0.3 (checked file by file when it was replaced).
+ * here gave the same result with gray-matter 4.0.3, except the three marked "changed on purpose" (see
+ * tests/hostile-files.test.ts for the hardening: a closing line must be exactly ---, an unclosed block
+ * is invalid, and anchors, aliases and merge keys are refused).
  */
 describe('frontmatter splitting', () => {
   const fm = '---\nid: T-001\ntitle: Hello\nstatus: todo\n---\n';
@@ -193,17 +195,17 @@ describe('frontmatter splitting', () => {
       expect(missing).toContain('id');
     }
   });
-  it('an unterminated block is all frontmatter and leaves an empty body', () => {
-    const { doc } = parseTaskFile('---\nid: T-001\ntitle: Open\n');
-    expect(doc).toMatchObject({ id: 'T-001', title: 'Open', body: '' });
+  it('an unterminated block is invalid (changed on purpose: it used to swallow the whole file)', () => {
+    expect(() => parseTaskFile('---\nid: T-001\ntitle: Open\n')).toThrow('frontmatter is not closed');
   });
   it('accepts "---yaml" and "---yml" on the opening line', () => {
     expect(parseTask('---yaml\nid: T-002\ntitle: Lang\n---\nB\n')).toMatchObject({ id: 'T-002', body: 'B\n' });
     expect(parseTask('---yml  \nid: T-003\ntitle: Lang\n---\nB\n').id).toBe('T-003');
   });
-  it('still understands YAML merge keys (<<) in unknown fields', () => {
-    const doc = parseTask('---\nid: T-010\ntitle: A\nbase: &b {x: 1}\nother:\n  <<: *b\n---\n');
-    expect(doc.extra.other).toEqual({ x: 1 });
+  it('refuses anchors and aliases, so merge keys (<<) are gone too (changed on purpose: they can amplify)', () => {
+    expect(() => parseTask('---\nid: T-010\ntitle: A\nbase: &b {x: 1}\nother:\n  <<: *b\n---\n')).toThrow(/alias/);
+    // Without an alias, "<<" is only a key like any other.
+    expect(parseTask('---\nid: T-010\ntitle: A\nother:\n  <<: {x: 1}\n---\n').extra.other).toEqual({ '<<': { x: 1 } });
   });
   it('refuses code languages without running anything', () => {
     expect(() => parseTask('---js\n({id: "x"})\n---\n')).toThrow('frontmatter must be YAML');

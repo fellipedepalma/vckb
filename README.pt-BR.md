@@ -220,6 +220,27 @@ Descrição livre em Markdown.
 - Os títulos `## Checklist` e `## Agent notes` fazem parte do formato. `## Notas do agente` também é aceito
   para as notas; o título que a tarefa já tiver é sempre preservado.
 
+### Formato dos arquivos e modelo de confiança
+
+Os arquivos de tarefa são editados por agentes e chegam em clones e pull requests, então o VCKB
+trata cada um como **entrada não confiável**. Ler um arquivo nunca executa nada e continua barato,
+seja qual for o conteúdo:
+
+| Aceito | Rejeitado (o arquivo aparece como ilegível, com um aviso; o resto do board funciona) |
+|---|---|
+| Frontmatter YAML entre uma primeira linha `---` (ou `---yaml`) e uma linha de fechamento exatamente `---` (espaços no fim são ok) | `---js`, `---javascript`, `---coffee`, `---json`: nenhum motor de frontmatter é executado |
+| Um mapeamento de valores YAML simples: texto, números, booleanos, nulo, listas, mapas | Tags YAML além do básico (`!!js/function`, `!!python/...`, `!!binary`, `!tags` customizadas) |
+| Texto UTF-8, com BOM e/ou CRLF (ambos são mantidos ao reescrever) | Âncoras e aliases (`&a`, `*a`) e chaves de merge `<<`: poucos deles se aninham em bilhões de valores. `*` ou `&` entre aspas num título é ok |
+| Chaves sem repetição | Chaves repetidas, bloco que nunca fecha, linha `----` no lugar de `---`, NUL ou outros caracteres de controle, bytes que não são UTF-8 |
+| Campos desconhecidos, mantidos como estão | Chaves `__proto__`, `constructor` e `prototype`, em qualquer nível: descartadas |
+
+Limites: um arquivo de tarefa acima de **1 MiB** nem é aberto, o bloco de frontmatter tem no máximo
+**64 KiB** e no máximo **20 níveis** de profundidade. Um corpo maior do que a API aceita (100.000
+caracteres) só pode ser lido, não editado. A escrita é igualmente rigorosa: títulos e labels com
+quebra de linha são recusados (`400`), o que é escrito volta exatamente igual, e uma descrição não
+pode conter uma linha que seja um cabeçalho `## Checklist` ou `## Agent notes` (eles iniciam as
+seções do próprio arquivo; `400`).
+
 ### Arquivos editados à mão
 
 Agentes e pessoas podem criar ou editar os arquivos diretamente. O VCKB nunca deixa de listar o board
