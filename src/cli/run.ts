@@ -23,7 +23,8 @@ Usage:
   vckb doctor <project> [--fix]     report hand-editing problems; --fix repairs them
 
 Global options:
-  --dir <path>   boards directory (default: $VCKB_BOARDS_DIR or ./boards in the install dir)
+  --dir <path>   boards directory (default: $VCKB_BOARDS_DIR, else boardsDir in ~/.vckb/config.json,
+                 else ./boards in the install dir)
   --json         JSON output (for agents/scripts)
   -h, --help     this help
 `;

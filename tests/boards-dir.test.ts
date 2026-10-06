@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('VCKB_BOARDS_DIR', () => {
   it('resolves: default ./boards in the install dir, env relative to the install dir, --dir relative to cwd', () => {
-    expect(resolveBoardsDir(undefined, {})).toBe(path.join(PACKAGE_ROOT, 'boards'));
+    expect(resolveBoardsDir(undefined, { VCKB_CONFIG_DIR: path.join(PACKAGE_ROOT, '.no-such-config') })).toBe(path.join(PACKAGE_ROOT, 'boards'));
     expect(resolveBoardsDir(undefined, { VCKB_BOARDS_DIR: '../my-boards' })).toBe(path.resolve(PACKAGE_ROOT, '../my-boards'));
     const abs = path.resolve('/tmp/x/boards');
     expect(resolveBoardsDir(undefined, { VCKB_BOARDS_DIR: abs })).toBe(abs);

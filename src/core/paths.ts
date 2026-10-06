@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { VckbError } from './errors.js';
@@ -13,13 +15,45 @@ export const COLUMN_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 export const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /**
- * Data directory. Precedence: `--dir` (relative to cwd) > `VCKB_BOARDS_DIR` > `./boards`.
- * A relative VCKB_BOARDS_DIR is resolved from the VCKB install directory (not the cwd),
- * so the CLI finds the same boards from whatever project it is called in.
+ * Where VCKB keeps its own settings: `~/.vckb` (`%USERPROFILE%\.vckb` on Windows), or $VCKB_CONFIG_DIR
+ * (meant for tests, so they never read or write the real one). It holds `config.json`, the local token
+ * and the files of `npm run start:local`.
+ */
+export function configDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.resolve(env.VCKB_CONFIG_DIR || path.join(os.homedir(), '.vckb'));
+}
+
+/** `boardsDir` from `<configDir>/config.json`, made absolute (a relative one counts from that folder). */
+export function configuredBoardsDir(env: NodeJS.ProcessEnv = process.env): string | null {
+  const file = path.join(configDir(env), 'config.json');
+  let raw: string;
+  try {
+    raw = readFileSync(file, 'utf8');
+  } catch {
+    return null; // no config: fine
+  }
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new VckbError('INVALID', `${file} is not valid JSON`);
+  }
+  const dir = (data as { boardsDir?: unknown } | null)?.boardsDir;
+  if (dir === undefined || dir === null || dir === '') return null;
+  if (typeof dir !== 'string') throw new VckbError('INVALID', `"boardsDir" in ${file} must be a text`);
+  return path.resolve(path.dirname(file), dir);
+}
+
+/**
+ * Data directory. Precedence: `--dir` (relative to cwd) > `VCKB_BOARDS_DIR` > `boardsDir` in
+ * `~/.vckb/config.json` > `./boards`. A relative VCKB_BOARDS_DIR is resolved from the VCKB install
+ * directory (not the cwd), so the CLI finds the same boards from whatever project it is called in.
+ * The server and the CLI both use this one function.
  */
 export function resolveBoardsDir(override?: string, env: NodeJS.ProcessEnv = process.env): string {
   if (override) return path.resolve(process.cwd(), override);
-  return path.resolve(PACKAGE_ROOT, env.VCKB_BOARDS_DIR || './boards');
+  if (env.VCKB_BOARDS_DIR) return path.resolve(PACKAGE_ROOT, env.VCKB_BOARDS_DIR);
+  return configuredBoardsDir(env) ?? path.resolve(PACKAGE_ROOT, 'boards');
 }
 
 /** Windows device names cannot be used as folder names (con, nul, com1...). */
