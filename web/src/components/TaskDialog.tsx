@@ -1,5 +1,6 @@
-import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ApiError, NetworkError } from '../api';
+import { MarkdownPreview } from '../markdown';
 import { strings } from '../strings';
 import {
   diffForm,
@@ -44,6 +45,9 @@ type Notice =
   | { kind: 'rejected'; message: string }
   | { kind: 'reloadFailed'; reason: string };
 
+const DESCRIPTION_TABS = ['edit', 'preview'] as const;
+type DescriptionTab = (typeof DESCRIPTION_TABS)[number];
+
 const FOCUSABLE = 'button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])';
 
 function fieldErrorText(error: FieldError): string {
@@ -78,12 +82,15 @@ function Field({
   label,
   hint,
   error,
+  labelRight,
   children,
 }: {
   id: string;
   label: string;
   hint?: string;
   error?: FieldError;
+  /** Next to the label (the Edit / Preview tabs of the description). */
+  labelRight?: ReactNode;
   children: (props: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }) => ReactNode;
 }) {
   const hintId = `${id}-hint`;
@@ -91,9 +98,18 @@ function Field({
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
   return (
     <div>
-      <label htmlFor={id} className={labelClass}>
-        {label}
-      </label>
+      {labelRight ? (
+        <div className="mb-1.5 flex items-end justify-between gap-3">
+          <label htmlFor={id} className="block text-[11px] font-medium uppercase tracking-widest text-muted">
+            {label}
+          </label>
+          {labelRight}
+        </div>
+      ) : (
+        <label htmlFor={id} className={labelClass}>
+          {label}
+        </label>
+      )}
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined })}
       {hint && (
         <p id={hintId} className="mt-1.5 text-[12px] text-muted">
@@ -127,6 +143,41 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
   const returnFocus = useRef<HTMLElement | null>(null);
   const escHandled = useRef(false);
   const backdropDown = useRef(false);
+
+  // Description: Edit / Preview tabs. The textarea stays mounted (hidden) so its value survives; a
+  // hidden element forgets its scroll position, so the selection and scroll are saved when leaving.
+  const [tab, setTab] = useState<DescriptionTab>('edit');
+  const tabRefs = useRef<Partial<Record<DescriptionTab, HTMLButtonElement | null>>>({});
+  const editView = useRef<{ start: number; end: number; direction: 'forward' | 'backward' | 'none'; scrollTop: number } | null>(null);
+  const switchTab = (next: DescriptionTab) => {
+    if (next === tab) return;
+    const area = fieldRefs.current.description as HTMLTextAreaElement | null | undefined;
+    if (tab === 'edit' && area) {
+      editView.current = { start: area.selectionStart, end: area.selectionEnd, direction: area.selectionDirection ?? 'none', scrollTop: area.scrollTop };
+    }
+    setTab(next);
+  };
+  useLayoutEffect(() => {
+    const area = fieldRefs.current.description as HTMLTextAreaElement | null | undefined;
+    const view = editView.current;
+    if (tab !== 'edit' || !area || !view) return;
+    area.setSelectionRange(view.start, view.end, view.direction);
+    area.scrollTop = view.scrollTop;
+  }, [tab]);
+  // WAI-ARIA tabs: arrows (wrapping), Home and End move to a tab and select it; only the selected tab is in the Tab order.
+  const onTabsKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const at = DESCRIPTION_TABS.indexOf(tab);
+    const target =
+      e.key === 'ArrowRight' ? (at + 1) % DESCRIPTION_TABS.length
+      : e.key === 'ArrowLeft' ? (at + DESCRIPTION_TABS.length - 1) % DESCRIPTION_TABS.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? DESCRIPTION_TABS.length - 1
+      : -1;
+    if (target < 0) return;
+    e.preventDefault();
+    switchTab(DESCRIPTION_TABS[target]);
+    tabRefs.current[DESCRIPTION_TABS[target]]?.focus();
+  };
 
   // showModal(): the page behind is inert (no clicks, no focus, no drag and drop) and Esc is ours.
   useEffect(() => {
@@ -191,6 +242,7 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
         const field = fieldOfServerError(err.message);
         if (field) {
           setErrors({ [field]: { kind: 'server', message: err.message } });
+          if (field === 'description') setTab('edit');
           focusField(field);
           return;
         }
@@ -208,6 +260,7 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
     if (first) {
       setErrors(found);
       setNotice(null);
+      if (first === 'description') setTab('edit');
       focusField(first);
       return;
     }
@@ -397,16 +450,55 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
               )}
             </Field>
 
-            <Field id={fieldId('description')} label={d.fields.description} hint={d.descriptionHint} error={errors.description}>
+            <Field
+              id={fieldId('description')}
+              label={d.fields.description}
+              hint={d.descriptionHint}
+              error={errors.description}
+              labelRight={
+                <div role="tablist" aria-label={d.markdown.tabsLabel} onKeyDown={onTabsKeyDown} className="-mb-px flex gap-1">
+                  {DESCRIPTION_TABS.map((t) => (
+                    <button
+                      key={t}
+                      ref={(el) => void (tabRefs.current[t] = el)}
+                      type="button"
+                      role="tab"
+                      id={`${ids}-tab-${t}`}
+                      aria-selected={tab === t}
+                      aria-controls={`${ids}-panel-${t}`}
+                      tabIndex={tab === t ? 0 : -1}
+                      onClick={() => switchTab(t)}
+                      className={`border-b-2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent ${tab === t ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'}`}
+                    >
+                      {d.markdown[t]}
+                    </button>
+                  ))}
+                </div>
+              }
+            >
               {(p) => (
-                <textarea
-                  {...p}
-                  ref={(el) => void (fieldRefs.current.description = el)}
-                  rows={7}
-                  value={values.description}
-                  onChange={(e) => set('description', e.target.value)}
-                  className={`${fieldClass} min-h-[8rem] resize-y font-sans leading-relaxed`}
-                />
+                <>
+                  <div role="tabpanel" id={`${ids}-panel-edit`} aria-labelledby={`${ids}-tab-edit`} hidden={tab !== 'edit'}>
+                    <textarea
+                      {...p}
+                      ref={(el) => void (fieldRefs.current.description = el)}
+                      rows={7}
+                      value={values.description}
+                      onChange={(e) => set('description', e.target.value)}
+                      className={`${fieldClass} min-h-[11.5rem] resize-y font-sans leading-relaxed`}
+                    />
+                  </div>
+                  <div
+                    role="tabpanel"
+                    id={`${ids}-panel-preview`}
+                    aria-labelledby={`${ids}-tab-preview`}
+                    hidden={tab !== 'preview'}
+                    tabIndex={0}
+                    className="max-h-[min(24rem,55dvh)] min-h-[11.5rem] overflow-auto rounded-md border border-line-strong bg-bg px-3 py-2 text-[14px] text-text"
+                  >
+                    {tab === 'preview' && <MarkdownPreview source={values.description} />}
+                  </div>
+                </>
               )}
             </Field>
           </div>

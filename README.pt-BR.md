@@ -106,6 +106,23 @@ no card. **Enter** abre os detalhes do card (um clique ou um toque rápido tamb�
 **Tab** e **Shift+Tab** ficam dentro do diálogo, **Esc** fecha (perguntando antes quando há
 alterações não salvas) e o foco volta ao card.
 
+## Markdown nas descrições
+
+A descrição de uma tarefa (o campo Description do diálogo de detalhes) é Markdown. **Edit** é o texto
+cru, que é o que fica salvo no arquivo; **Preview** apenas o mostra.
+
+- Renderizado: parágrafos e quebras de linha, títulos (três tamanhos), ênfase, **negrito**, ~~tachado~~,
+  código inline e em bloco (sem realce de sintaxe), citações, listas ordenadas e não ordenadas
+  (inclusive itens `- [ ]`), linhas horizontais e tabelas. Blocos de código e tabelas largos rolam
+  dentro do preview.
+- **HTML não é interpretado:** `<script>`, `<img onerror=...>`, `<b>` e similares aparecem como texto literal.
+- **Links:** só links absolutos `http`, `https` e `mailto` são clicáveis (abrem em nova aba com
+  `rel="noopener noreferrer nofollow"`). Qualquer outro (`javascript:`, `data:`, `file:`, relativo,
+  `//host`...) aparece como texto.
+- **Imagens nunca são carregadas:** `![alt](url)` aparece como o texto do alt seguido da URL em texto.
+- Acima de 100.000 caracteres, ou texto que o renderizador não consiga processar, é mostrado como
+  texto simples com um aviso.
+
 ## CLI
 
 ```

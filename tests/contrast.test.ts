@@ -68,3 +68,36 @@ describe('WCAG Contrast', () => {
     });
   });
 });
+
+/**
+ * The rendered Markdown (web/src/markdown.tsx) sits on `bg` (the preview box), code on `surface-2`.
+ * Every pair it uses is named here, so removing one from the general matrices above cannot go unnoticed.
+ */
+describe('Markdown preview pairs', () => {
+  const text: [string, string, string][] = [
+    ['body text', 'text', 'bg'],
+    ['link (accent)', 'accent', 'bg'],
+    ['link on hover (text)', 'text', 'bg'],
+    ['inline code and code blocks', 'text', 'surface-2'],
+    ['quote (muted)', 'muted', 'bg'],
+    ['"Nothing to preview" (muted)', 'muted', 'bg'],
+    ['plain-text fallback notice (accent-2)', 'accent-2', 'bg'],
+    ['active tab (accent)', 'accent', 'surface'],
+    ['inactive tab (muted)', 'muted', 'surface'],
+    ['inactive tab on hover (text)', 'text', 'surface'],
+  ];
+  it.each(text)('%s: %s on %s >= 4.5:1', (_what, fg, bg) => {
+    expect(contrast(colors[fg], colors[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  const borders: [string, string, string][] = [
+    ['preview box', 'line-strong', 'surface'],
+    ['quote bar', 'line-strong', 'bg'],
+    ['table cells', 'line-strong', 'bg'],
+    ['rules', 'line-strong', 'bg'],
+    ['active tab underline (accent)', 'accent', 'surface'],
+  ];
+  it.each(borders)('%s: %s on %s >= 3:1', (_what, border, bg) => {
+    expect(contrast(colors[border], colors[bg])).toBeGreaterThanOrEqual(3);
+  });
+});

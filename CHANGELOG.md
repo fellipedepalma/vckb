@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Web UI: the Description in the details dialog is Markdown, with **Edit** and **Preview** tabs (WAI-ARIA
+  tabs: arrows, Home and End). The saved text is exactly what you type; Preview only shows it. Headings,
+  emphasis, code, quotes, lists, rules, tables and links are rendered as React elements by a small
+  converter over `marked` 18.1.0's lexer (13.6 kB gzip). Raw HTML is shown as text, only absolute
+  `http`, `https` and `mailto` links are clickable (checked again when rendering), and images are never
+  loaded (alt text and URL are shown as text). Text over 100,000 characters, or that the renderer cannot
+  handle, is shown as plain text with a notice. The CSP is unchanged.
 - Web UI: task details dialog to edit an existing task. Click a card, tap it, or press Enter on it
   (a drag never opens it; Space still picks a card up). Edit title, status, priority, labels
   (comma-separated) and description; Save sends only the changed fields with the task's `If-Match`

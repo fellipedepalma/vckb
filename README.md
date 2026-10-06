@@ -105,6 +105,22 @@ on the card. **Enter** opens the card's details (a click or a quick tap does too
 **Tab** and **Shift+Tab** stay within the dialog, **Escape** closes it (asking first when there are
 unsaved changes) and focus returns to the card.
 
+## Markdown in descriptions
+
+The description of a task (the Description field of the details dialog) is Markdown. **Edit** is the
+raw text, which is what is saved in the file; **Preview** only shows it.
+
+- Rendered: paragraphs and line breaks, headings (three sizes), emphasis, **bold**, ~~strikethrough~~,
+  inline code and code blocks (no syntax highlighting), quotes, ordered and unordered lists
+  (including `- [ ]` task items), horizontal rules and tables. Wide code blocks and tables scroll
+  inside the preview.
+- **HTML is not interpreted:** `<script>`, `<img onerror=...>`, `<b>` and the like appear as literal text.
+- **Links:** only absolute `http`, `https` and `mailto` links are clickable (they open in a new tab with
+  `rel="noopener noreferrer nofollow"`). Any other link (`javascript:`, `data:`, `file:`, relative,
+  `//host`...) is shown as plain text.
+- **Images are never loaded:** `![alt](url)` appears as the alt text followed by the URL as text.
+- Over 100,000 characters, or text the renderer cannot handle, is shown as plain text with a notice.
+
 ## CLI
 
 ```
