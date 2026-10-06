@@ -80,6 +80,25 @@ Só o `boards/example/` é versionado aqui. Para os seus projetos, o fluxo recom
 3. Faça commit do repositório de boards quando quiser: você ganha o histórico de cada mudança de
    status e de cada nota de agente.
 
+## Use de verdade
+
+Três passos, uma vez só (Windows; as pastas são exemplos):
+
+1. **Config.** Guarde os boards numa pasta própria, fora deste repositório, e diga ao VCKB onde fica em
+   `%USERPROFILE%\.vckb\config.json`: `{ "boardsDir": "C:/Users/voce/vckb-boards" }`.
+   Ordem de precedência da pasta de boards, para o servidor e para o CLI: `--dir` > `VCKB_BOARDS_DIR` >
+   `boardsDir` desse arquivo > `./boards` (o exemplo). `VCKB_CONFIG_DIR` muda a pasta `.vckb` (feito
+   para testes).
+2. **Iniciar.** Dê dois cliques em `VCKB-start.bat` (ou `npm run start:local`): ele faz o build, sobe em
+   `127.0.0.1:8787` (a próxima porta livre se estiver ocupada), abre o navegador e mostra a URL e o
+   token. O token é criado uma vez e fica em `%USERPROFILE%\.vckb\token`; o log e a cópia congelada
+   do build ficam na mesma pasta. Não inicia se nenhuma pasta de boards estiver configurada.
+   (`npm run demo` é a cópia descartável do board de exemplo e continua igual.)
+3. **Agentes.** Cole o bloco do protocolo de `AGENT-PROTOCOL.md` no `AGENTS.md` de cada projeto, com o
+   caminho absoluto dos boards e o slug do projeto preenchidos. Para usar o `vckb` em qualquer pasta
+   sem mexer no `PATH`, crie um `vckb.cmd` que rode `node <este repositório>\bin\vckb.js %*` e chame-o
+   pelo caminho absoluto.
+
 ## Docker
 
 ```bash

@@ -45,6 +45,7 @@
     "audit": "npm audit --omit=dev",
     "vckb": "node bin/vckb.js",
     "demo": "node scripts/demo.mjs",
+    "start:local": "node scripts/demo.mjs --local",
     "test:e2e:stress": "npm run build && playwright test --config playwright.stress.config.ts"
   },
   "dependencies": {

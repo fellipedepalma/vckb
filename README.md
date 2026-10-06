@@ -79,6 +79,25 @@ vckb list example
 3. Commit the boards repo whenever you like: you get the history of every status change and every
    agent note for free.
 
+## Use it for real
+
+Three steps, once (Windows; the folders are examples):
+
+1. **Config.** Keep your boards in a folder of their own, outside this repository, and tell VCKB where
+   it is in `%USERPROFILE%\.vckb\config.json`: `{ "boardsDir": "C:/Users/you/vckb-boards" }`.
+   Order of precedence for the boards folder, for the server and the CLI alike: `--dir` >
+   `VCKB_BOARDS_DIR` > `boardsDir` in that file > `./boards` (the example). `VCKB_CONFIG_DIR` moves
+   the `.vckb` folder (meant for tests).
+2. **Start.** Double-click `VCKB-start.bat` (or `npm run start:local`): it builds, starts on
+   `127.0.0.1:8787` (the next free port if busy), opens the browser and prints the URL and the token.
+   The token is made once and kept in `%USERPROFILE%\.vckb\token`; the log and the frozen build are
+   in the same folder. It refuses to start if no boards folder is configured. (`npm run demo` is
+   the disposable copy of the example board and is unchanged.)
+3. **Agents.** Paste the protocol block of `AGENT-PROTOCOL.md` into each project's `AGENTS.md`, with the
+   absolute boards path and the project's slug filled in. To use `vckb` from any folder without
+   touching your `PATH`, make a `vckb.cmd` that runs `node <this repo>\bin\vckb.js %*` and call it by its
+   absolute path.
+
 ## Docker
 
 ```bash

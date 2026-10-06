@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Use it for real: the boards folder can now come from `boardsDir` in `~/.vckb/config.json` (precedence:
+  `--dir` > `VCKB_BOARDS_DIR` > that file > `./boards`; the same function serves the server and the CLI), and
+  `npm run start:local` / `VCKB-start.bat` start VCKB on those boards, with a token kept in `~/.vckb/token`,
+  the build frozen and logged in `~/.vckb` and the browser opened, like `npm run demo` (which is unchanged).
+  It refuses to start without a configured boards folder. New README section "Use it for real".
 - Web UI: the help under the Description now says that ← → switch the Edit/Preview tabs (and is read as the
   tab list's description); the tabs and the Preview panel show the mint focus ring when reached with the
   keyboard. (The tabs already responded to ← → Home End when they have the focus; inside the text box those keys
