@@ -143,7 +143,7 @@ describe('renumbered etags in the PATCH body', () => {
       const file = id === 'T-001' ? 'T-001-shared.md' : `${id}-task-${Number(id.slice(2))}.md`;
       expect(renumbered[id], id).toBe(etagOf(await readFile(path.join(tasks, file), 'utf8')));
     }
-  });
+  }, 30_000); // writes 500 files and rewrites 499 of them: over the default 5 s on a slow disk
 });
 
 describe('parseIfMatch', () => {
