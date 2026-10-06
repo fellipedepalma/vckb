@@ -212,7 +212,7 @@ test.describe('the tabs', () => {
     // The first focus of the dialog is still the title.
     await expect(dialog(page).getByLabel(d.fields.title, { exact: true })).toBeFocused();
 
-    await edit.focus();
+    await edit.click(); // a real click puts the focus on the tab
     await page.keyboard.press('ArrowRight');
     await expect(prev).toBeFocused();
     await expect(prev).toHaveAttribute('aria-selected', 'true');
@@ -235,7 +235,6 @@ test.describe('the tabs', () => {
     await page.keyboard.press('Tab');
     await expect(preview(page)).toBeFocused();
     await edit.click();
-    await edit.focus();
     await page.keyboard.press('Tab');
     await expect(description(page)).toBeFocused();
   });
