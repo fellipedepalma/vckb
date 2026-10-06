@@ -153,6 +153,10 @@ test.describe('Markdown preview in the browser', () => {
     await expect(preview(page).locator('img')).toHaveCount(0);
   });
 
+  // Only here is an error that a boundary caught expected (the page logs it as a warning).
+  test.describe('text the renderer cannot handle', () => {
+  test.use({ allowCaughtErrors: true });
+
   test('absurd text stays fast and the dialog keeps working', async ({ page, request }) => {
     const slug = uniqueSlug('md-absurd');
     await createProject(request, slug, [{ title: 'Alpha' }]);
@@ -187,6 +191,7 @@ test.describe('Markdown preview in the browser', () => {
     // Still a working dialog.
     await dialog(page).getByLabel(d.fields.title, { exact: true }).fill('Still alive');
     await expect(dialog(page).getByLabel(d.fields.title, { exact: true })).toHaveValue('Still alive');
+  });
   });
 });
 

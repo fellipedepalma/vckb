@@ -22,11 +22,19 @@ const RESOURCE_ERROR = /^Failed to load resource: (?:the server responded with a
 /**
  * Every test fails if the page logs a console error or warning about CSP, throws, or triggers a
  * CSP violation. The session probe's 401 on the sign-in screen is expected by design.
+ *
+ * The app reports an error that a React error boundary caught (or that React recovered from) as a
+ * console.warn (web/src/main.tsx), because the person is already told. In tests that is still a
+ * failure, unless the test sets `allowCaughtErrors`: only the ones that feed the app text it cannot
+ * render (the Markdown preview's absurd-input test) do.
  */
-export const test = base.extend<{ expectedHttpErrors: ExpectedHttpError[]; guard: void }>({
+const CAUGHT_ERROR = /^(Caught by an error boundary|React recovered from an error)/;
+
+export const test = base.extend<{ expectedHttpErrors: ExpectedHttpError[]; allowCaughtErrors: boolean; guard: void }>({
   expectedHttpErrors: [[{ status: 401, url: /\/api\/session$/ }], { option: true }],
+  allowCaughtErrors: [false, { option: true }],
   guard: [
-    async ({ page, expectedHttpErrors }, use) => {
+    async ({ page, expectedHttpErrors, allowCaughtErrors }, use) => {
       const problems: string[] = [];
       page.on('console', (msg) => {
         const text = msg.text();
@@ -36,6 +44,8 @@ export const test = base.extend<{ expectedHttpErrors: ExpectedHttpError[]; guard
           if (http && expectedHttpErrors.some((e) => e.status === Number(http[1] ?? 0) && e.url.test(url))) return;
           problems.push(`console.error: ${text} (${url})`);
         } else if (/content security policy|refused to/i.test(text)) {
+          problems.push(`console.${msg.type()}: ${text}`);
+        } else if (!allowCaughtErrors && CAUGHT_ERROR.test(text)) {
           problems.push(`console.${msg.type()}: ${text}`);
         }
       });
