@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Web UI: the help under the Description now says that ← → switch the Edit/Preview tabs (and is read as the
+  tab list's description); the tabs and the Preview panel show the mint focus ring when reached with the
+  keyboard. (The tabs already responded to ← → Home End when they have the focus; inside the text box those keys
+  move the cursor, as they should.) The e2e tests for the tabs now use real clicks and key presses only.
 - Web UI: the Description in the details dialog is Markdown, with **Edit** and **Preview** tabs (WAI-ARIA
   tabs: arrows, Home and End). The saved text is exactly what you type; Preview only shows it. Headings,
   emphasis, code, quotes, lists, rules, tables and links are rendered as React elements by a small

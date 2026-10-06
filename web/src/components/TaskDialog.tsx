@@ -456,7 +456,7 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
               hint={d.descriptionHint}
               error={errors.description}
               labelRight={
-                <div role="tablist" aria-label={d.markdown.tabsLabel} onKeyDown={onTabsKeyDown} className="-mb-px flex gap-1">
+                <div role="tablist" aria-label={d.markdown.tabsLabel} aria-describedby={`${fieldId('description')}-hint`} onKeyDown={onTabsKeyDown} className="-mb-px flex gap-1">
                   {DESCRIPTION_TABS.map((t) => (
                     <button
                       key={t}
@@ -494,7 +494,7 @@ export function TaskDialog({ task, slug, columns, onSave, onReload, onClose }: T
                     aria-labelledby={`${ids}-tab-preview`}
                     hidden={tab !== 'preview'}
                     tabIndex={0}
-                    className="max-h-[min(24rem,55dvh)] min-h-[11.5rem] overflow-auto rounded-md border border-line-strong bg-bg px-3 py-2 text-[14px] text-text"
+                    className="max-h-[min(24rem,55dvh)] min-h-[11.5rem] overflow-auto rounded-md border border-line-strong bg-bg px-3 py-2 text-[14px] text-text focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
                   >
                     {tab === 'preview' && <MarkdownPreview source={values.description} />}
                   </div>

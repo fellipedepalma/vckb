@@ -105,7 +105,7 @@ export const strings = {
     },
     labelsHint: 'Separated by commas. Letters, digits, “.”, “_” and “-”, up to 32 characters each, at most 20 labels.',
     labelsChips: 'Labels in this task',
-    descriptionHint: 'Markdown. The checklist and the agent notes in the file are left untouched.',
+    descriptionHint: 'Markdown. Use ← → on the Edit/Preview tabs to switch. The checklist and the agent notes in the file are left untouched.',
     markdown: {
       tabsLabel: 'Description view',
       edit: 'Edit',
