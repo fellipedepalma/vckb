@@ -57,7 +57,7 @@ describe(`the writer and the reader agree (${PURE_CASES} seeded cases)`, () => {
       // Writing what was read changes nothing (so writing twice is writing once).
       expect(serializeTask(back), where).toBe(text);
     }
-  });
+  }, 60_000); // ~2 s alone, but over 5 s when the whole suite runs in parallel on a busy machine
 
   it('a title can never end the frontmatter or add a field', () => {
     const attacks = ['x\nstatus: done\n---\ninjection', 'x\r\nstatus: done', 'x: y\nstatus: done', '---\nstatus: done\n---', 'x\n---\n## Checklist\n- [x] hijack', '"\nstatus: done\n"', "'\nstatus: done"];

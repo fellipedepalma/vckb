@@ -115,7 +115,7 @@ describe(`reader fuzzing (${ITERATIONS} seeded mutations)`, () => {
     // Both outcomes really happen (a fuzzer that only produced one kind would prove little).
     expect(valid).toBeGreaterThan(ITERATIONS * 0.1);
     expect(invalid).toBeGreaterThan(ITERATIONS * 0.1);
-  });
+  }, 60_000);
 
   it('the same files through the store: a task or an invalid_file warning, nothing thrown', async () => {
     const rng = seeded(SEED + 1);
