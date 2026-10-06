@@ -365,6 +365,9 @@ test.describe('editing and saving', () => {
 
     await mouseDrag(page, card(page, 'Beta'), column(page, slug, 'Doing').locator('ol'), { at: 0.9 });
     await expect(column(page, slug, 'Doing').getByRole('article', { name: 'Beta' })).toBeVisible();
+    // dnd-kit swallows every click for 50 ms after a drag ends (a document-level capture listener):
+    // a person cannot click that fast, a script can (an immediate click failed 23 of 25 runs).
+    await page.waitForTimeout(150);
     // The move is still in flight: open Alpha, edit, save.
     await card(page, 'Alpha').click();
     await expect(dialog(page)).toBeVisible();
