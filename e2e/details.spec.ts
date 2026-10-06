@@ -625,6 +625,39 @@ test.describe('errors inside the dialog', () => {
     });
   });
 
+  test.describe('a description that looks like a section heading', () => {
+    test.use({ expectedHttpErrors: httpErrors(...SESSION, { status: 400, url: /\/tasks\/T-001$/ }) });
+
+    test('is refused in the Description field (400) and nothing is written', async ({ page, request }) => {
+      const slug = uniqueSlug('det-reserved');
+      await createProject(request, slug, [{ title: 'Alpha', description: 'Original', checklist: [{ text: 'real item', done: false }] }]);
+      await openProject(page, slug, 'Alpha');
+      const file = taskFile(slug, 'T-001-alpha.md');
+      const before = await readFile(file, 'utf8');
+      await openDetails(page, 'Alpha');
+
+      await field(page, d.fields.description).fill('Intro\n\n## Checklist\n\n- [x] fake item');
+      await save(page).click();
+      const description = field(page, d.fields.description);
+      await expect(dialog(page).getByText(/"description" must not contain a line that is a "## Checklist"/)).toBeVisible();
+      await expect(description).toHaveAttribute('aria-invalid', 'true');
+      expect(await description.getAttribute('aria-describedby')).toContain('error');
+      await expect(description).toBeFocused();
+      await expect(dialog(page)).toBeVisible();
+      await expect(description).toHaveValue('Intro\n\n## Checklist\n\n- [x] fake item'); // what was typed is still there
+      await expect(dialog(page).getByRole('alert')).toHaveCount(0);
+      expect(await readFile(file, 'utf8')).toBe(before);
+
+      // Fixing the text lets it save, and the real checklist is untouched.
+      await description.fill('Intro\n\n### Checklist ideas\n\n- [x] fine as text');
+      await save(page).click();
+      await expect(dialog(page)).toHaveCount(0);
+      const after = await readFile(file, 'utf8');
+      expect(after).toContain('### Checklist ideas');
+      expect(after.slice(after.indexOf('\n## Checklist'))).toBe(before.slice(before.indexOf('\n## Checklist')));
+    });
+  });
+
   test.describe('400 and 5xx', () => {
     test.use({ expectedHttpErrors: httpErrors(...SESSION, { status: 400, url: /\/tasks\/T-001$/ }, { status: 500, url: /\/tasks\/T-001$/ }) });
 
