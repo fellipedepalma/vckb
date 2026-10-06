@@ -199,7 +199,7 @@ Descrição livre em Markdown.
   (ex.: um processo num container que compartilha o volume). Só apague à mão se nada estiver rodando.
 - Toda escrita é atômica (arquivo temporário + rename). Só o frontmatter e a seção alterada mudam;
   o resto do corpo é preservado byte a byte, assim como campos desconhecidos do frontmatter.
-- O frontmatter precisa ser YAML. Outras linguagens do gray-matter (ex.: `---js`) são rejeitadas de propósito.
+- O frontmatter precisa ser YAML. Outras linguagens de frontmatter (ex.: `---js`) são rejeitadas de propósito.
 - Os títulos `## Checklist` e `## Agent notes` fazem parte do formato. `## Notas do agente` também é aceito
   para as notas; o título que a tarefa já tiver é sempre preservado.
 

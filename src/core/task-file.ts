@@ -1,5 +1,7 @@
-import matter from 'gray-matter';
 import * as yaml from 'js-yaml';
+
+/** js-yaml's default (safe) schema plus `<<` merge keys, which gray-matter's js-yaml 3 understood. */
+const READ_SCHEMA = yaml.CORE_SCHEMA.withTags(yaml.mergeTag);
 
 export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = (typeof PRIORITIES)[number];
@@ -47,21 +49,24 @@ function toLabels(v: unknown): string[] {
   return [];
 }
 
-const refuseEngine = () => {
-  throw new Error('frontmatter must be YAML');
-};
-
 /**
- * gray-matter options. Passing options also disables its internal cache, which would
- * hand back the same mutable object.
- * SECURITY: gray-matter accepts "---js" and evaluates that frontmatter with eval(). A
- * malicious .md would run code just by being read, so only YAML is accepted (checked in
- * parseTask) and the code engines are neutralized as a second barrier.
+ * Splits `---` frontmatter from the Markdown body: the opening line is `---` (the caller already
+ * refused `---js` and friends), the block ends at the first line starting with `---`, and one line
+ * break after that closing line is dropped from the body. A block with only comments is `{}`; an
+ * unterminated block takes the whole file and leaves an empty body.
+ * SECURITY: only js-yaml's default (safe) schema reads the block; there is no code engine to run.
  */
-const MATTER_OPTIONS = {
-  language: 'yaml',
-  engines: { javascript: refuseEngine, js: refuseEngine, coffee: refuseEngine },
-};
+function splitFrontmatter(raw: string): { data: unknown; content: string } {
+  const firstLineEnd = raw.search(/\r?\n/);
+  const rest = firstLineEnd === -1 ? '' : raw.slice(firstLineEnd); // starts with the line break
+  const close = rest.indexOf('\n---');
+  const block = close === -1 ? rest : rest.slice(0, close);
+  let content = close === -1 ? '' : rest.slice(close + '\n---'.length);
+  if (content.startsWith('\r')) content = content.slice(1);
+  if (content.startsWith('\n')) content = content.slice(1);
+  const empty = block.replace(/^\s*#[^\n]+/gm, '').trim() === '';
+  return { data: empty ? {} : yaml.load(block, { schema: READ_SCHEMA }), content };
+}
 
 /** A parsed file plus the known fields that were absent or unusable (defaults were applied). */
 export interface ParsedTask {
@@ -79,7 +84,7 @@ export function parseTaskFile(input: string): ParsedTask {
   const lang = /^---([^\r\n]*)/.exec(raw)?.[1].trim().toLowerCase();
   if (lang === undefined) throw new Error('file has no frontmatter (it must start with "---")');
   if (lang && lang !== 'yaml' && lang !== 'yml') throw new Error('frontmatter must be YAML');
-  const parsed = matter(raw, MATTER_OPTIONS as Parameters<typeof matter>[1]);
+  const parsed = splitFrontmatter(raw);
   const data = (parsed.data ?? {}) as Record<string, unknown>;
   const missing: string[] = [];
   const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '');

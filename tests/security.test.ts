@@ -162,7 +162,7 @@ describe('CORS', () => {
 });
 
 describe('hostile .md files (audit findings)', () => {
-  it('"---js" frontmatter is NOT executed (gray-matter would eval it)', async () => {
+  it('"---js" frontmatter is NOT executed (some frontmatter libraries would eval it)', async () => {
     const { parseTask } = await import('../src/core/task-file.js');
     const g = globalThis as { __pwned?: boolean };
     g.__pwned = false;

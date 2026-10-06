@@ -211,7 +211,7 @@ Free-form Markdown description.
   (e.g. a process in a container sharing the volume). Delete it by hand only if nothing is running.
 - All writes are atomic (temp file + rename). Only the frontmatter and the touched section change;
   the rest of the Markdown body is preserved byte for byte, along with unknown frontmatter fields.
-- Frontmatter must be YAML. Other gray-matter languages (e.g. `---js`) are rejected on purpose.
+- Frontmatter must be YAML. Other frontmatter languages (e.g. `---js`) are rejected on purpose.
 - The section headings `## Checklist` and `## Agent notes` are part of the format. `## Notas do agente`
   (Portuguese) is accepted as an alias for agent notes; an existing heading is always preserved.
 

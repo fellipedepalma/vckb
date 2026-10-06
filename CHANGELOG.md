@@ -108,6 +108,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Dependencies: `npm audit --omit=dev` started failing (GHSA-hp3w-g68c-fv3c, `sprintf-js`, reached through
+  gray-matter -> js-yaml 3 -> argparse 1; it was never loaded by VCKB). Task files are now split into
+  frontmatter and body by VCKB itself and parsed with js-yaml 5, which was already a dependency, so
+  gray-matter and the vulnerable tree are gone. Same files, same results; `---js` is still refused.
 - Web UI: on narrow screens the page could scroll sideways into blank space (visually hidden texts
   inside the board's scroll area stuck out of it); the board now contains them.
 - Keyboard moves: after a failed save rolled a card back, focus could end up nowhere on a slow

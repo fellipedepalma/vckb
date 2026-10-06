@@ -171,3 +171,41 @@ describe('Markdown body', () => {
     expect(kebab('!!!')).toBe('task');
   });
 });
+
+/**
+ * Splitting frontmatter from the body is done by VCKB itself (it used gray-matter before). Every case
+ * here gave the same result with gray-matter 4.0.3 (checked file by file when it was replaced).
+ */
+describe('frontmatter splitting', () => {
+  const fm = '---\nid: T-001\ntitle: Hello\nstatus: todo\n---\n';
+  it('keeps CRLF files and their body as they are', () => {
+    const doc = parseTask(fm.replace(/\n/g, '\r\n') + 'Body\r\nmore\r\n');
+    expect(doc).toMatchObject({ id: 'T-001', title: 'Hello', status: 'todo', body: 'Body\r\nmore\r\n' });
+  });
+  it('a "---" line inside the body is not another frontmatter block', () => {
+    expect(parseTask(`${fm}Intro\n\n---\n\nAfter\n`).body).toBe('Intro\n\n---\n\nAfter\n');
+    expect(parseTask(`${fm}---\nrule first\n`).body).toBe('---\nrule first\n');
+  });
+  it('an empty or comment-only block is {} (everything defaulted), body kept', () => {
+    for (const raw of ['---\n---\nBody\n', '---\n# only a comment\n---\nBody\n']) {
+      const { doc, missing } = parseTaskFile(raw);
+      expect(doc.body).toBe('Body\n');
+      expect(missing).toContain('id');
+    }
+  });
+  it('an unterminated block is all frontmatter and leaves an empty body', () => {
+    const { doc } = parseTaskFile('---\nid: T-001\ntitle: Open\n');
+    expect(doc).toMatchObject({ id: 'T-001', title: 'Open', body: '' });
+  });
+  it('accepts "---yaml" and "---yml" on the opening line', () => {
+    expect(parseTask('---yaml\nid: T-002\ntitle: Lang\n---\nB\n')).toMatchObject({ id: 'T-002', body: 'B\n' });
+    expect(parseTask('---yml  \nid: T-003\ntitle: Lang\n---\nB\n').id).toBe('T-003');
+  });
+  it('still understands YAML merge keys (<<) in unknown fields', () => {
+    const doc = parseTask('---\nid: T-010\ntitle: A\nbase: &b {x: 1}\nother:\n  <<: *b\n---\n');
+    expect(doc.extra.other).toEqual({ x: 1 });
+  });
+  it('refuses code languages without running anything', () => {
+    expect(() => parseTask('---js\n({id: "x"})\n---\n')).toThrow('frontmatter must be YAML');
+  });
+});

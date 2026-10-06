@@ -28,7 +28,7 @@ When a test fails or something behaves unexpectedly, find the root cause
 
 - Node 22.12+, TypeScript (ESM, `module: NodeNext`, imports with the `.js` suffix)
 - Backend: Hono + `@hono/node-server`; real time via chokidar → SSE
-- Files: gray-matter (reading **YAML** frontmatter only), js-yaml (writing)
+- Files: js-yaml reads and writes the frontmatter (**YAML** only; `splitFrontmatter` in `src/core/task-file.ts`)
 - CLI: `node:util` `parseArgs`, no server needed (talks to the files directly)
 - Frontend: React + Vite + Tailwind + dnd-kit (in `web/`), built to `dist/web` and served by the same server
 - Tests: vitest (`server` and `web` projects), Playwright (chromium) e2e against the production build
@@ -72,7 +72,7 @@ boards/       data (one directory per project). Only boards/example/ is versione
 - Disk writes always go through `atomicWrite` and inside the project's `withLock`.
 - Every path built from external input goes through `assertSlug`/`normalizeTaskId` **and**
   `safeJoin`. Never `path.join` user input.
-- Never swap the frontmatter parser for something that accepts `---js` (gray-matter would `eval` it).
+- Never swap the frontmatter parser for something that accepts `---js` (libraries such as gray-matter `eval` it).
 - Preserve the Markdown body: change only the section you need (`setChecklist`, `setDescription`,
   `appendNote`).
 - Everything contributors read (code, comments, messages, tests, docs) is in English, except
