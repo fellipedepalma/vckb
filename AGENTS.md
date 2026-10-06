@@ -128,6 +128,10 @@ Task files are also written by humans and agents directly, so reading must never
 - No external resources (CDNs, Google Fonts, remote images). Fonts are bundled (OFL). Frontend packages
   are devDependencies: they end up in the bundle, not in the production `node_modules`.
 - Never relax the CSP. If a library needs `unsafe-inline`/`unsafe-eval`, stop and propose an alternative.
+- Markdown from task files is rendered only by `web/src/markdown.tsx`: React elements built from
+  `marked`'s tokens (pinned), raw HTML shown as text, only absolute `http`/`https`/`mailto` links, images
+  never loaded. `tests/web-no-html-injection.test.ts` fails on `dangerouslySetInnerHTML`, `innerHTML`,
+  `outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` and `new Function` anywhere in `web/src`.
 - Every text shown to users lives in `web/src/strings.ts`.
 - Design tokens are in `web/src/styles.css`. Marigold means "needs you" (review column, warnings) and
   nothing else. Text must meet WCAG AA contrast; control borders 3:1.
